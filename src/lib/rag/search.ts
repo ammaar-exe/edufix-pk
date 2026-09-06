@@ -85,10 +85,10 @@ async function embedQuery(text: string): Promise<number[]> {
 
 /**
  * Retrieval fallback tuning.
- * Fallback threshold is set to 0.35 to guarantee retrieval while preventing noise.
+ * Fallback threshold set to 0.40 to guarantee retrieval while preventing noise/contamination.
  */
 const FALLBACK_TOP_K = 10;
-const FALLBACK_THRESHOLD = 0.35;
+const FALLBACK_THRESHOLD = 0.40;
 
 interface RunMatchArgs {
   supabase: ReturnType<typeof createSupabaseAdminClient>;
@@ -133,19 +133,28 @@ async function runMatchKbChunks({
 
   return rows
     .filter((row) => Number.isFinite(row.similarity) && row.similarity >= threshold)
-    .map((row) => ({
-      chunk_id: row.chunk_id,
-      document_id: row.document_id,
-      subject_id: row.subject_id,
-      content: row.content,
-      metadata: row.metadata,
-      similarity: row.similarity,
-      document_title: row.document_title,
-      document_category: row.document_category,
-      document_year: row.document_year,
-      document_session: row.document_session,
-      document_paper_code: row.document_paper_code,
-    }));
+    .map((row) => {
+      // Re-score similarity slightly to give higher priority to dedicated notes vs noisy markschemes
+      let adjustedSimilarity = row.similarity;
+      if (row.document_category === "notes") {
+        adjustedSimilarity = Math.min(1.0, row.similarity + 0.05);
+      }
+
+      return {
+        chunk_id: row.chunk_id,
+        document_id: row.document_id,
+        subject_id: row.subject_id,
+        content: row.content,
+        metadata: row.metadata,
+        similarity: Number(adjustedSimilarity.toFixed(5)),
+        document_title: row.document_title,
+        document_category: row.document_category,
+        document_year: row.document_year,
+        document_session: row.document_session,
+        document_paper_code: row.document_paper_code,
+      };
+    })
+    .sort((a, b) => b.similarity - a.similarity);
 }
 
 export async function searchKnowledgeBase(
@@ -161,8 +170,8 @@ export async function searchKnowledgeBase(
 
   const subjectId = assertSubjectId(options.subject_id);
 
-  // If sub_topic is passed, auto-adjust strict threshold to 0.40 to prevent missing valid chunks
-  const defaultThreshold = options.filters?.sub_topic ? 0.40 : env.RAG_SIMILARITY_THRESHOLD;
+  // Auto-tune default threshold to 0.50 for high-precision retrieval
+  const defaultThreshold = options.filters?.sub_topic ? 0.45 : env.RAG_SIMILARITY_THRESHOLD || 0.50;
   const threshold = options.threshold ?? defaultThreshold;
 
   if (threshold < 0 || threshold > 1) {
@@ -201,7 +210,7 @@ export async function searchKnowledgeBase(
   }
 
   // Step 2 — Fallback pass: Relax category, year, session, paper_code,
-  // BUT PRESERVE subject_id and sub_topic TO PREVENT TOPIC LEAKS AND NON-CAIE COMPLIANCE.
+  // BUT PRESERVE subject_id and sub_topic TO PREVENT TOPIC LEAKS.
   console.warn(
     `[rag] strict retrieval returned 0 chunks (subject=${subjectId}, ` +
       `sub_topic=${options.filters?.sub_topic ?? "none"}, threshold=${threshold}); ` +
@@ -219,7 +228,6 @@ export async function searchKnowledgeBase(
       paper_code: null,
       year: null,
       session: null,
-      // PRESERVE SUB-TOPIC TO PREVENT CROSS-TOPIC CONTAMINATION
       sub_topic: options.filters?.sub_topic ?? null,
     },
   });
@@ -299,6 +307,7 @@ function parseCliArgs(argv: string[]): CliArgs {
         args.session = value;
         break;
       case "sub_topic":
+      case "subTopic":
         args.sub_topic = value;
         break;
       case "top":
@@ -321,16 +330,16 @@ function printUsage(): void {
   npx tsx src/lib/rag/search.ts --subject=<pak-studies|islamiyat|urdu> --query="<text>" [options]
 
 Options:
-  --subject=<subject_id>     Required. One of: ${ALLOWED_SUBJECT_IDS.join(", ")}
-  --query="<text>"            Required. Search query.
-  --category=<category>       Optional metadata filter.
-  --paper_code=<code>        Optional metadata filter, e.g. 2059/1.
-  --year=<year>              Optional metadata filter, e.g. 2022.
-  --session=<session>        Optional metadata filter, e.g. "May/June".
-  --sub_topic=<slug>         Optional hard isolation filter, e.g. battle_of_badr_624ad.
+  --subject=<subject_id>      Required. One of: ${ALLOWED_SUBJECT_IDS.join(", ")}
+  --query="<text>"             Required. Search query.
+  --category=<category>        Optional metadata filter (notes, past_paper, marking_scheme).
+  --paper_code=<code>         Optional metadata filter, e.g. 2058/11.
+  --year=<year>               Optional metadata filter, e.g. 2022.
+  --session=<session>         Optional metadata filter, e.g. "May/June".
+  --sub_topic=<slug>          Optional hard isolation filter, e.g. conquest_of_makkah_battle_of_hunain_and_tabuk.
   --top=<n>                  Number of results to return. Default: 5. Max: 50.
   --threshold=<0-1>          Cosine similarity threshold. Default: RAG_SIMILARITY_THRESHOLD.
-  --help                     Show this help message.
+  --help                      Show this help message.
 `);
 }
 
