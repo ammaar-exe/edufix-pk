@@ -70,8 +70,8 @@ export function AuthForm() {
         return;
       }
 
-      // 1. Primary Signup attempt with metadata
-      let signUpRes = await supabase.auth.signUp({
+      // SIGNUP
+      const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,
         options: {
@@ -83,47 +83,21 @@ export function AuthForm() {
         },
       });
 
-      // 2. Secondary fallback attempt without metadata if trigger/RLS failed
-      if (signUpRes.error) {
-        signUpRes = await supabase.auth.signUp({
-          email: trimmedEmail,
-          password,
+      if (error) throw error;
+
+      // Check if user was created but requires email confirmation
+      if (data.user && !data.session) {
+        setStatus({
+          kind: "success",
+          message: "Account created! Check your email to confirm your account.",
         });
-      }
-
-      if (signUpRes.error) throw signUpRes.error;
-
-      // 3. Direct Session Check or Automatic Immediate Login Fallback
-      if (signUpRes.data?.session) {
-        setStatus({ kind: "success", message: "Account created! Redirecting…" });
-        router.push("/");
-        router.refresh();
         return;
       }
 
-      // Auto-authenticate immediately to bypass confirmation delays
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password,
-      });
-
-      if (!signInErr) {
-        setStatus({ kind: "success", message: "Account verified & created! Redirecting…" });
-        router.push("/");
-        router.refresh();
-        return;
-      }
-
-      // Final success fallback status
-      setStatus({
-        kind: "success",
-        message: "Account created! Redirecting to home...",
-      });
-      setTimeout(() => {
-        router.push("/");
-        router.refresh();
-      }, 1000);
-
+      // Immediate session created (Confirm email disabled)
+      setStatus({ kind: "success", message: "Account created! Redirecting…" });
+      router.push("/");
+      router.refresh();
     } catch (error) {
       setStatus({
         kind: "error",
@@ -164,7 +138,7 @@ export function AuthForm() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen py-10 px-4 bg-[#FFF6EC]">
-      {/* Uiverse Retro Switch Toggle */}
+      {/* Retro Switch Toggle */}
       <div className="flex items-center gap-12 mb-8 select-none">
         <span
           className={`font-mono text-sm font-bold uppercase cursor-pointer ${
