@@ -35,12 +35,15 @@ const FEATURE_LABEL: Record<FeatureType, string> = {
 };
 
 const FEATURE_BADGE_CLASS: Record<FeatureType, string> = {
-  notes:
-    "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:ring-emerald-800",
-  answer_assistant:
-    "bg-sky-50 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:ring-sky-800",
-  answer_checker:
-    "bg-violet-50 text-violet-700 ring-1 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:ring-violet-800",
+  notes: "bg-[#82193A] text-[#FEE3C5] border border-black",
+  answer_assistant: "bg-[#FEE3C5] text-[#82193A] border border-[#82193A]",
+  answer_checker: "bg-black text-[#FEE3C5] border border-black",
+};
+
+const FEATURE_ACTION_LABEL: Record<FeatureType, string> = {
+  notes: "VIEW NOTES →",
+  answer_assistant: "LOAD SCAFFOLD →",
+  answer_checker: "VIEW REPORT →",
 };
 
 // ---------------------------------------------------------------------------
@@ -74,7 +77,7 @@ function getActiveSubject(): string {
 }
 
 // ---------------------------------------------------------------------------
-// ActivityLogDrawer
+// ActivityLogDrawer Component
 // ---------------------------------------------------------------------------
 
 interface ActivityLogDrawerProps {
@@ -132,7 +135,10 @@ export function ActivityLogDrawer({ open, onClose }: ActivityLogDrawerProps) {
     onClose();
   }
 
-  async function handleDelete(e: React.MouseEvent | React.KeyboardEvent, id: string) {
+  async function handleDelete(
+    e: React.MouseEvent | React.KeyboardEvent,
+    id: string
+  ) {
     e.stopPropagation();
     // Optimistic update
     setRows((prev) => prev.filter((r) => r.id !== id));
@@ -153,89 +159,126 @@ export function ActivityLogDrawer({ open, onClose }: ActivityLogDrawerProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogPrimitive.Portal>
-        {/* Overlay */}
+        {/* Backdrop Overlay */}
         <DialogPrimitive.Overlay
           className={cn(
-            "fixed inset-0 z-50 bg-black/40 backdrop-blur-sm",
+            "fixed inset-0 z-50 bg-black/40",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
-            "duration-200"
+            "duration-150"
           )}
         />
 
-        {/* Panel — slides in from the right */}
+        {/* Drawer Panel */}
         <DialogPrimitive.Content
           aria-describedby={undefined}
           className={cn(
-            "fixed inset-y-0 end-0 z-50 flex w-full max-w-sm flex-col",
-            "bg-background shadow-xl ring-1 ring-border",
+            "fixed inset-y-0 right-0 z-50 flex w-full max-w-full sm:w-[440px] flex-col",
+            "bg-white border-l border-black shadow-none select-text",
             "data-[state=open]:animate-in data-[state=open]:slide-in-from-right",
             "data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right",
             "duration-200 ease-out"
           )}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <div className="flex items-center gap-2">
-              <ClockIcon className="size-4 text-muted-foreground" />
-              <DialogPrimitive.Title className="text-sm font-semibold">
+          <div className="h-14 px-5 bg-[#FEE3C5] border-b border-black flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center space-x-2.5">
+              <ClockIcon className="w-4 h-4 text-black flex-shrink-0" />
+              <DialogPrimitive.Title className="font-mono text-sm font-bold tracking-wider uppercase text-black">
                 My Activity
               </DialogPrimitive.Title>
             </div>
             <DialogPrimitive.Close
               aria-label="Close activity log"
-              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-emerald-600"
+              className="p-1.5 border border-black bg-white text-black hover:bg-[#82193A] hover:text-[#FEE3C5] transition-all duration-150 active:scale-95 focus:outline-none focus:ring-1 focus:ring-black"
             >
-              <XIcon className="size-4" />
+              <XIcon className="w-4 h-4" />
             </DialogPrimitive.Close>
           </div>
 
-          {/* Body */}
-          <ScrollAreaPrimitive.Root className="flex-1 overflow-hidden">
+          {/* Editorial Context Sub-bar */}
+          <div className="px-5 py-2 bg-[#FFF6EC] border-b border-black flex items-center justify-between text-[11px] font-mono text-black/75 flex-shrink-0">
+            <span className="flex items-center space-x-1.5">
+              <span className="w-1.5 h-1.5 bg-[#82193A]" />
+              <span className="uppercase tracking-wider font-semibold">
+                Supabase Persistence Active
+              </span>
+            </span>
+            <span className="font-bold text-black">
+              {loading ? "FETCHING..." : `${rows.length} ITEMS`}
+            </span>
+          </div>
+
+          {/* Drawer Body / Scroll Area */}
+          <ScrollAreaPrimitive.Root className="flex-1 overflow-hidden bg-white">
             <ScrollAreaPrimitive.Viewport className="h-full w-full">
               {loading ? (
-                <div className="flex flex-col gap-2 p-4">
+                <div className="p-5 space-y-3">
                   {[0, 1, 2, 3].map((i) => (
                     <div
                       key={i}
-                      className="h-16 animate-pulse rounded-lg bg-muted/60"
-                    />
+                      className="p-3.5 bg-[#FFF6EC] border border-black/20 animate-pulse"
+                      style={{ animationDuration: "1.4s" }}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="h-4 w-16 bg-[#82193A]/20 border border-black/20" />
+                        <div className="h-3 w-12 bg-black/10" />
+                      </div>
+                      <div className="h-4 w-5/6 bg-black/15 mb-2" />
+                      <div className="h-3 w-1/2 bg-black/10" />
+                    </div>
                   ))}
                 </div>
               ) : rows.length === 0 ? (
-                <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                  No activity yet.
+                <div className="py-16 px-4 text-center">
+                  <div className="w-10 h-10 border border-black mx-auto mb-3 flex items-center justify-center bg-[#FFF6EC]">
+                    <ClockIcon className="w-5 h-5 text-black/50" />
+                  </div>
+                  <p className="font-mono text-sm font-semibold text-[#333333]">
+                    No activity yet.
+                  </p>
+                  <p className="text-xs font-mono text-black/50 mt-1">
+                    Generated notes, scaffolds, and evaluated answers will be stored here.
+                  </p>
                 </div>
               ) : (
-                <ul className="flex flex-col gap-1 p-3">
+                <ul className="p-5 space-y-3">
                   {rows.map((row) => (
                     <li key={row.id}>
                       <button
                         type="button"
                         onClick={() => handleCardClick(row)}
-                        className="group relative w-full rounded-lg border border-transparent px-3 py-2.5 text-start transition-colors hover:border-border hover:bg-accent focus-visible:outline-2 focus-visible:outline-emerald-600"
+                        className="group relative w-full text-left p-3.5 bg-white border border-black/30 hover:border-black hover:bg-[#FFF6EC] transition-all duration-150 active:scale-[0.99] block cursor-pointer"
                       >
-                        {/* Feature badge */}
-                        <span
-                          className={cn(
-                            "mb-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                            FEATURE_BADGE_CLASS[row.feature_type]
-                          )}
-                        >
-                          {FEATURE_LABEL[row.feature_type]}
-                        </span>
+                        {/* Feature Badge & Relative Timestamp */}
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <span
+                            className={cn(
+                              "inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider",
+                              FEATURE_BADGE_CLASS[row.feature_type]
+                            )}
+                          >
+                            {FEATURE_LABEL[row.feature_type]}
+                          </span>
 
-                        {/* Title */}
-                        <p className="line-clamp-2 text-sm leading-snug text-foreground">
+                          <span className="text-[11px] font-mono text-black/60 flex-shrink-0">
+                            {formatTimestamp(row.created_at)}
+                          </span>
+                        </div>
+
+                        {/* Activity Title */}
+                        <p className="font-serif font-bold text-sm text-black leading-snug line-clamp-2 pr-6">
                           {row.title}
                         </p>
 
-                        {/* Timestamp */}
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {formatTimestamp(row.created_at)}
-                        </p>
+                        {/* Action Callout */}
+                        <div className="mt-2 flex items-center justify-end text-[10px] font-mono pt-1 border-t border-black/10">
+                          <span className="text-[#82193A] font-semibold">
+                            {FEATURE_ACTION_LABEL[row.feature_type]}
+                          </span>
+                        </div>
 
-                        {/* Delete button */}
+                        {/* Delete Button */}
                         <span
                           role="button"
                           aria-label="Delete activity"
@@ -246,9 +289,9 @@ export function ActivityLogDrawer({ open, onClose }: ActivityLogDrawerProps) {
                               handleDelete(e, row.id);
                             }
                           }}
-                          className="absolute end-2 top-2 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-destructive"
+                          className="absolute top-3 right-3 p-1 text-black/40 hover:text-[#82193A] hover:bg-white border border-transparent hover:border-black transition-all duration-150 active:scale-95 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-black"
                         >
-                          <Trash2Icon className="size-3.5" />
+                          <Trash2Icon className="w-3.5 h-3.5" />
                         </span>
                       </button>
                     </li>
@@ -258,11 +301,21 @@ export function ActivityLogDrawer({ open, onClose }: ActivityLogDrawerProps) {
             </ScrollAreaPrimitive.Viewport>
             <ScrollAreaPrimitive.Scrollbar
               orientation="vertical"
-              className="flex w-1.5 touch-none select-none p-px"
+              className="flex w-1.5 touch-none select-none p-px bg-[#FFF6EC]"
             >
-              <ScrollAreaPrimitive.Thumb className="relative flex-1 rounded-full bg-border" />
+              <ScrollAreaPrimitive.Thumb className="relative flex-1 bg-black/40" />
             </ScrollAreaPrimitive.Scrollbar>
           </ScrollAreaPrimitive.Root>
+
+          {/* Drawer Footer */}
+          <div className="p-4 bg-[#FEE3C5] border-t border-black flex-shrink-0">
+            <div className="flex items-center justify-between text-[11px] font-mono text-black/70">
+              <span>STORAGE: SUPABASE DATABASE</span>
+              <span className="font-bold uppercase text-[10px] text-black">
+                EDUFIX PK
+              </span>
+            </div>
+          </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

@@ -2,24 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-
-/**
- * AuthForm — functional, UNSTYLED authentication component for EduFix PK.
- *
- * A self-contained client component that owns its view/field state and wires the
- * submit + "Forgot Password" actions to Supabase Auth (the same @supabase/ssr
- * browser client used across the app). It is deliberately unstyled: every element
- * carries a stable, semantic wrapper class (auth-*, form-*, password-*) so a
- * stylesheet can be layered on later without touching this logic.
- *
- * Views:
- *   - Sign In  -> email + password, plus a "Forgot Password?" action
- *   - Sign Up  -> email + password + confirm password
- * Every password field has a Show/Hide toggle that flips its input type between
- * "password" (hidden) and "text" (visible).
- */
 
 type AuthView = "signin" | "signup";
 type StatusKind = "idle" | "loading" | "success" | "error";
@@ -42,25 +25,19 @@ export function AuthForm() {
   const [fullName, setFullName] = useState("");
   const [grade, setGrade] = useState("");
   const [subjectPreferences, setSubjectPreferences] = useState<string[]>([]);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [status, setStatus] = useState<Status>(IDLE);
 
   const isSubmitting = status.kind === "loading";
   const isSignIn = view === "signin";
   const passwordsMatch = password === confirmPassword;
 
-  function switchView(next: AuthView) {
-    if (next === view) return;
-    setView(next);
-    // Clear secrets when switching modes so nothing leaks between views.
+  function toggleView() {
+    const nextView = isSignIn ? "signup" : "signin";
+    setView(nextView);
     setPassword("");
     setConfirmPassword("");
-    setShowPassword(false);
-    setShowConfirmPassword(false);
     setStatus(IDLE);
   }
-
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,10 +53,8 @@ export function AuthForm() {
       return;
     }
 
-    // Created lazily inside the handler so it never runs during SSR/prerender
-    // (the browser client touches document.cookie, which is client-only).
     const supabase = createSupabaseBrowserClient();
-    setStatus({ kind: "loading", message: "" });
+    setStatus({ kind: "loading", message: "Processing..." });
 
     try {
       if (isSignIn) {
@@ -88,16 +63,19 @@ export function AuthForm() {
           password,
         });
         if (error) throw error;
-        setStatus({ kind: "success", message: "Signed in. Redirecting…" });
+        setStatus({ kind: "success", message: "Signed in successfully. Redirecting…" });
         router.push("/");
         router.refresh();
         return;
       }
 
+      const redirectUrl = `${window.location.origin}/auth/callback`;
+
       const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,
         options: {
+          emailRedirectTo: redirectUrl,
           data: {
             full_name: fullName.trim(),
             grade: grade.trim(),
@@ -107,7 +85,6 @@ export function AuthForm() {
       });
       if (error) throw error;
 
-      // When email confirmation is enabled Supabase returns no session yet.
       if (data.session) {
         setStatus({ kind: "success", message: "Account created. Redirecting…" });
         router.push("/");
@@ -115,14 +92,13 @@ export function AuthForm() {
       } else {
         setStatus({
           kind: "success",
-          message: "Account created. Check your email to confirm your address.",
+          message: "Account created! Please check your email to confirm your address.",
         });
       }
     } catch (error) {
       setStatus({
         kind: "error",
-        message:
-          error instanceof Error ? error.message : "Authentication failed.",
+        message: error instanceof Error ? error.message : "Authentication failed.",
       });
     }
   }
@@ -132,290 +108,198 @@ export function AuthForm() {
     if (!trimmedEmail) {
       setStatus({
         kind: "error",
-        message: "Enter your email address above, then choose Forgot Password.",
+        message: "Enter your email address above to reset your password.",
       });
       return;
     }
 
     const supabase = createSupabaseBrowserClient();
-    setStatus({ kind: "loading", message: "" });
+    setStatus({ kind: "loading", message: "Sending reset link..." });
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        // A /reset-password route completes this flow; Supabase appends the
-        // recovery token to this URL when the user opens the emailed link.
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
       setStatus({
         kind: "success",
-        message:
-          "If that email is registered, a password reset link is on its way.",
+        message: "Password reset link sent to your email address.",
       });
     } catch (error) {
       setStatus({
         kind: "error",
-        message:
-          error instanceof Error ? error.message : "Could not send the reset email.",
+        message: error instanceof Error ? error.message : "Could not send reset email.",
       });
     }
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <header className="auth-header">
-          <h1 className="auth-title">
-            {isSignIn ? "Sign in to EduFix PK" : "Create your EduFix PK account"}
-          </h1>
-          <p className="auth-subtitle">
-            {isSignIn
-              ? "Welcome back. Enter your details to continue."
-              : "Register with your email to start using EduFix PK."}
-          </p>
-        </header>
-
-        {/* View switcher */}
-        <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
-          <button
-            type="button"
-            role="tab"
-            id="auth-tab-signin"
-            aria-selected={isSignIn}
-            aria-controls="auth-panel"
-            className={
-              isSignIn
-                ? "auth-tab auth-tab--signin auth-tab--active"
-                : "auth-tab auth-tab--signin"
-            }
-            onClick={() => switchView("signin")}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            role="tab"
-            id="auth-tab-signup"
-            aria-selected={!isSignIn}
-            aria-controls="auth-panel"
-            className={
-              isSignIn
-                ? "auth-tab auth-tab--signup"
-                : "auth-tab auth-tab--signup auth-tab--active"
-            }
-            onClick={() => switchView("signup")}
-          >
-            Sign Up
-          </button>
-        </div>
-
-        {/* Feedback region (error / success / loading) */}
-        <div
-          className={`auth-status auth-status--${status.kind}`}
-          role={status.kind === "error" ? "alert" : "status"}
-          aria-live="polite"
-          hidden={status.kind === "idle"}
+    <div className="flex flex-col items-center justify-center min-h-screen py-10 px-4 bg-[#FFF6EC]">
+      {/* Uiverse Retro Switch Toggle */}
+      <div className="flex items-center gap-12 mb-8 select-none">
+        <span
+          className={`font-mono text-sm font-bold uppercase cursor-pointer ${
+            isSignIn ? "underline text-[#82193A]" : "text-[#82193A]/60"
+          }`}
+          onClick={() => isSignIn || toggleView()}
         >
-          {status.message}
-        </div>
+          Log in
+        </span>
 
-        <form
-          className="auth-form form"
-          id="auth-panel"
-          role="tabpanel"
-          aria-labelledby={isSignIn ? "auth-tab-signin" : "auth-tab-signup"}
-          onSubmit={handleSubmit}
+        <label className="relative inline-block w-[50px] h-[24px] cursor-pointer">
+          <input
+            type="checkbox"
+            className="sr-only"
+            checked={!isSignIn}
+            onChange={toggleView}
+          />
+          <span className="absolute inset-0 border-2 border-[#82193A] bg-[#FEE3C5] rounded-[5px] shadow-[3px_3px_0px_#82193A] transition-all"></span>
+          <span
+            className={`absolute top-[2px] left-[2px] w-[16px] h-[16px] border-2 border-[#82193A] bg-[#FEE3C5] rounded-[3px] shadow-[0_2px_0_#82193A] transition-transform duration-300 ${
+              !isSignIn ? "translate-x-[24px]" : "translate-x-0"
+            }`}
+          ></span>
+        </label>
+
+        <span
+          className={`font-mono text-sm font-bold uppercase cursor-pointer ${
+            !isSignIn ? "underline text-[#82193A]" : "text-[#82193A]/60"
+          }`}
+          onClick={() => !isSignIn || toggleView()}
         >
+          Sign up
+        </span>
+      </div>
+
+      {/* Retro Auth Card */}
+      <div className="w-full max-w-[340px] bg-[#FEE3C5] border-2 border-[#82193A] rounded-[5px] shadow-[4px_4px_0px_#82193A] p-6">
+        <h2 className="text-[22px] font-black text-center text-[#82193A] uppercase mb-4 tracking-wide">
+          {isSignIn ? "Log in" : "Sign up"}
+        </h2>
+
+        {/* Status Messaging */}
+        {status.kind !== "idle" && (
+          <div
+            className={`p-3 mb-4 font-mono text-xs border-2 border-[#82193A] ${
+              status.kind === "error"
+                ? "bg-[#82193A] text-[#FEE3C5] font-bold"
+                : status.kind === "success"
+                ? "bg-[#FFF6EC] text-[#82193A] font-bold border-l-4"
+                : "bg-[#FEE3C5] text-[#82193A] italic"
+            }`}
+          >
+            {status.message}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 items-center">
           {!isSignIn && (
             <>
-              <div className="form-field form-field--name input-span">
-                <label className="form-label label" htmlFor="auth-name">
-                  Full Name
-                </label>
-                <input
-                  className="form-input"
-                  id="auth-name"
-                  name="fullName"
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  placeholder="Ali Khan"
-                />
-              </div>
+              <input
+                type="text"
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Full Name"
+                className="w-full h-[40px] px-3 bg-[#FEE3C5] border-2 border-[#82193A] rounded-[5px] shadow-[3px_3px_0px_#82193A] font-mono text-sm text-[#82193A] placeholder-[#82193A]/70 outline-none focus:bg-[#FFF6EC]"
+              />
+              <input
+                type="text"
+                required
+                value={grade}
+                onChange={(e) => setGrade(e.target.value)}
+                placeholder="Grade / Year (e.g. O-Level)"
+                className="w-full h-[40px] px-3 bg-[#FEE3C5] border-2 border-[#82193A] rounded-[5px] shadow-[3px_3px_0px_#82193A] font-mono text-sm text-[#82193A] placeholder-[#82193A]/70 outline-none focus:bg-[#FFF6EC]"
+              />
+            </>
+          )}
 
-              <div className="form-field form-field--grade input-span">
-                <label className="form-label label" htmlFor="auth-grade">
-                  Grade / Year
-                </label>
-                <input
-                  className="form-input"
-                  id="auth-grade"
-                  name="grade"
-                  type="text"
-                  required
-                  value={grade}
-                  onChange={(event) => setGrade(event.target.value)}
-                  placeholder="e.g. O-Level, Year 10"
-                />
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email address"
+            className="w-full h-[40px] px-3 bg-[#FEE3C5] border-2 border-[#82193A] rounded-[5px] shadow-[3px_3px_0px_#82193A] font-mono text-sm text-[#82193A] placeholder-[#82193A]/70 outline-none focus:bg-[#FFF6EC]"
+          />
+
+          <input
+            type="password"
+            required
+            minLength={isSignIn ? undefined : MIN_PASSWORD}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            className="w-full h-[40px] px-3 bg-[#FEE3C5] border-2 border-[#82193A] rounded-[5px] shadow-[3px_3px_0px_#82193A] font-mono text-sm text-[#82193A] placeholder-[#82193A]/70 outline-none focus:bg-[#FFF6EC]"
+          />
+
+          {!isSignIn && (
+            <>
+              <input
+                type="password"
+                required
+                minLength={MIN_PASSWORD}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm Password"
+                className="w-full h-[40px] px-3 bg-[#FEE3C5] border-2 border-[#82193A] rounded-[5px] shadow-[3px_3px_0px_#82193A] font-mono text-sm text-[#82193A] placeholder-[#82193A]/70 outline-none focus:bg-[#FFF6EC]"
+              />
+
+              {/* Subject Preferences */}
+              <div className="w-full flex flex-col gap-1.5 mt-1">
+                <span className="font-mono text-[11px] font-bold text-[#82193A] uppercase">
+                  Subject Preferences:
+                </span>
+                {[
+                  { id: "pak-studies", label: "Pakistan Studies (2059)" },
+                  { id: "islamiyat", label: "Islamiyat (2058)" },
+                  { id: "urdu", label: "Urdu (3248)" },
+                ].map((subject) => (
+                  <label
+                    key={subject.id}
+                    className="flex items-center gap-2 font-mono text-xs text-[#82193A] cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-[#82193A]"
+                      checked={subjectPreferences.includes(subject.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSubjectPreferences((prev) => [...prev, subject.id]);
+                        } else {
+                          setSubjectPreferences((prev) =>
+                            prev.filter((id) => id !== subject.id)
+                          );
+                        }
+                      }}
+                    />
+                    <span>{subject.label}</span>
+                  </label>
+                ))}
               </div>
             </>
           )}
 
-          <div className="form-field form-field--email input-span">
-            <label className="form-label label" htmlFor="auth-email">
-              Email address
-            </label>
-            <input
-              className="form-input"
-              id="auth-email"
-              name="email"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div className="form-field form-field--password input-span">
-            <label className="form-label label" htmlFor="auth-password">
-              Password
-            </label>
-            <div className="password-control">
-              <input
-                className="form-input password-input"
-                id="auth-password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                autoComplete={isSignIn ? "current-password" : "new-password"}
-                required
-                minLength={isSignIn ? undefined : MIN_PASSWORD}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="Enter your password"
-              />
+          {isSignIn && (
+            <div className="w-full flex justify-end">
               <button
                 type="button"
-                className="password-toggle"
-                onClick={() => setShowPassword((value) => !value)}
-                aria-pressed={showPassword}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
-            </div>
-          </div>
-
-          {!isSignIn ? (
-            <>
-              <div className="form-field form-field--confirm-password input-span">
-                <label className="form-label label" htmlFor="auth-confirm-password">
-                  Confirm password
-                </label>
-                <div className="password-control">
-                  <input
-                    className="form-input password-input"
-                    id="auth-confirm-password"
-                    name="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    autoComplete="new-password"
-                    required
-                    minLength={MIN_PASSWORD}
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    placeholder="Re-enter your password"
-                  />
-                  <button
-                    type="button"
-                    className="password-toggle"
-                    onClick={() => setShowConfirmPassword((value) => !value)}
-                    aria-pressed={showConfirmPassword}
-                    aria-label={
-                      showConfirmPassword ? "Hide password" : "Show password"
-                    }
-                  >
-                    {showConfirmPassword ? "Hide" : "Show"}
-                  </button>
-                </div>
-                {confirmPassword.length > 0 && !passwordsMatch ? (
-                  <p className="field-error" role="alert">
-                    Passwords do not match.
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="form-field form-field--subjects input-span">
-                <label className="form-label label">Subject Preferences</label>
-                <div className="flex flex-col gap-2 mt-2">
-                  {[
-                    { id: "pak-studies", label: "Pakistan Studies (2059)" },
-                    { id: "islamiyat", label: "Islamiyat (2058)" },
-                    { id: "urdu", label: "Urdu (3248)" },
-                  ].map((subject) => (
-                    <label key={subject.id} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={subjectPreferences.includes(subject.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSubjectPreferences((prev) => [...prev, subject.id]);
-                          } else {
-                            setSubjectPreferences((prev) =>
-                              prev.filter((id) => id !== subject.id)
-                            );
-                          }
-                        }}
-                      />
-                      <span className="text-sm">{subject.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </>
-          ) : null}
-
-          {isSignIn ? (
-            <div className="form-extras">
-              <button
-                type="button"
-                className="link-button forgot-password-button"
                 onClick={handleForgotPassword}
+                className="font-mono text-[11px] font-bold text-[#82193A] hover:underline uppercase"
               >
                 Forgot Password?
               </button>
             </div>
-          ) : null}
+          )}
 
           <button
             type="submit"
-            className="submit-button submit"
             disabled={isSubmitting}
+            className="mt-3 w-[140px] h-[40px] bg-[#FEE3C5] border-2 border-[#82193A] rounded-[5px] shadow-[4px_4px_0px_#82193A] font-mono text-sm font-bold text-[#82193A] uppercase cursor-pointer transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0px_#82193A] disabled:opacity-50"
           >
-            {isSubmitting
-              ? isSignIn
-                ? "Signing in…"
-                : "Creating account…"
-              : isSignIn
-                ? "Sign In"
-                : "Sign Up"}
+            {isSubmitting ? "Wait..." : isSignIn ? "Log in" : "Sign up"}
           </button>
         </form>
-
-        <footer className="auth-footer">
-          <p className="auth-switch span">
-            {isSignIn ? "Don't have an account?" : "Already have an account?"}{" "}
-            <button
-              type="button"
-              className="link-button auth-switch-button"
-              onClick={() => switchView(isSignIn ? "signup" : "signin")}
-            >
-              {isSignIn ? "Sign up" : "Sign in"}
-            </button>
-          </p>
-        </footer>
       </div>
     </div>
   );

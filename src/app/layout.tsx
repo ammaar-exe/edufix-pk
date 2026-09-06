@@ -18,7 +18,11 @@ export const metadata: Metadata = {
     "Past-paper-grounded AI notes, answer scaffolding and answer checking for Pakistan Studies (2059), Islamiyat (2058) and Urdu (3248).",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
