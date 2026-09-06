@@ -16,9 +16,9 @@ import {
  *   * matching happens inside Postgres via the match_kb_chunks RPC
  *   * subject_id filtering is mandatory and enforced before any database call
  *   * strict pass matches subject + metadata filters + similarity threshold
- *   * FALLBACK: if strict pass returns zero chunks, generic metadata filters
- *     (year, paper_code, session, category) are relaxed, BUT sub_topic and
- *     subject_id isolations are STRICTLY PRESERVED to avoid topic mixing.
+ *   * FALLBACK: if strict pass returns zero chunks (e.g. due to sub_topic slug tag mismatch),
+ *     metadata filters and sub_topic locks are relaxed to perform a semantic-only retrieval
+ *     across the subject pool, ensuring guaranteed grounded context.
  */
 
 export { ALLOWED_SUBJECT_IDS, assertSubjectId, isSubjectId };
@@ -30,9 +30,7 @@ export interface SearchFilters {
   year?: number;
   session?: string;
   /**
-   * Hard sub-topic isolation filter. match_kb_chunks keeps chunks whose
-   * metadata.sub_topic equals this slug OR is generic/untagged (NULL / 'general%'),
-   * excluding chunks deterministically tagged as a DIFFERENT specific sub-topic.
+   * Hard sub-topic isolation filter.
    */
   sub_topic?: string;
 }
@@ -126,6 +124,7 @@ async function runMatchKbChunks({
   });
 
   if (error) {
+    console.error("[rag-error] Supabase RPC match_kb_chunks failed:", JSON.stringify(error, null, 2));
     throw new Error(`kb_chunks vector search failed: ${error.message}`);
   }
 
@@ -209,12 +208,12 @@ export async function searchKnowledgeBase(
     return strictResults;
   }
 
-  // Step 2 — Fallback pass: Relax category, year, session, paper_code,
-  // BUT PRESERVE subject_id and sub_topic TO PREVENT TOPIC LEAKS.
+  // Step 2 — Fallback pass: Relax category, year, session, paper_code, AND sub_topic
+  // when strict tag mismatch yields 0 rows, enabling pure semantic search across subject pool.
   console.warn(
     `[rag] strict retrieval returned 0 chunks (subject=${subjectId}, ` +
       `sub_topic=${options.filters?.sub_topic ?? "none"}, threshold=${threshold}); ` +
-      `falling back with preserved topic isolation (top_k=${FALLBACK_TOP_K}).`
+      `falling back with relaxed sub_topic filter (top_k=${FALLBACK_TOP_K}).`
   );
 
   return runMatchKbChunks({
@@ -228,7 +227,7 @@ export async function searchKnowledgeBase(
       paper_code: null,
       year: null,
       session: null,
-      sub_topic: options.filters?.sub_topic ?? null,
+      sub_topic: null, // Relaxed to guarantee semantic retrieval across subject pool
     },
   });
 }
@@ -334,8 +333,8 @@ Options:
   --query="<text>"             Required. Search query.
   --category=<category>        Optional metadata filter (notes, past_paper, marking_scheme).
   --paper_code=<code>         Optional metadata filter, e.g. 2058/11.
-  --year=<year>               Optional metadata filter, e.g. 2022.
-  --session=<session>         Optional metadata filter, e.g. "May/June".
+  --year=<year>                Optional metadata filter, e.g. 2022.
+  --session=<session>          Optional metadata filter, e.g. "May/June".
   --sub_topic=<slug>          Optional hard isolation filter, e.g. conquest_of_makkah_battle_of_hunain_and_tabuk.
   --top=<n>                  Number of results to return. Default: 5. Max: 50.
   --threshold=<0-1>          Cosine similarity threshold. Default: RAG_SIMILARITY_THRESHOLD.

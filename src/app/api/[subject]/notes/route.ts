@@ -4,25 +4,6 @@
  * The subject is derived EXCLUSIVELY from the route param (context-isolation
  * boundary, rules.md §2). The request body never supplies the subject. All
  * CAIE content is retrieved from the knowledge base; nothing is authored here.
- *
- * Note-generator re-architecture:
- *   • The selector is a 3-tier map (Subject -> Paper/Section -> Sub-topic). The
- *     body carries `paperCode` (the section id, or "all") and `topicId` (the
- *     sub-topic slug). Both are validated against the effective taxonomy and the
- *     authoritative display label is resolved server-side (never trusted from
- *     the client).
- *   • Retrieval is STRICTLY ISOLATED: kb_chunks carry a deterministic
- *     metadata.sub_topic tag spanning all 44 granular Islamiyat (17) + Pakistan
- *     Studies (27) sub-topics (scripts/lib/subtopic-tagger.ts, applied by
- *     scripts/retag-subtopics.ts). For those subjects the selected slug is
- *     passed to match_kb_chunks, which (migration 0006) keeps ONLY chunks whose
- *     metadata @> {"sub_topic": slug} — zero chunks from outside the selected
- *     sub-topic enter the context (no Uhud in a Badr query, no 3rd RTC in a 1st
- *     RTC query, no syllabus meta-text). Urdu has no granular tags (broad
- *     syllabus themes over Urdu-script text), so it passes no filter and
- *     retrieves its full general pool. The targeted semantic query (label +
- *     humanised slug + section) orders the isolated set by relevance.
- *   • Generation returns long-form MARKDOWN (CAIE AO1/AO2 engine), not JSON.
  */
 
 import { z } from "zod";
@@ -48,12 +29,11 @@ import type {
 } from "@/lib/notes/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 30; // Max execution duration for Vercel/Serverless
 export const dynamic = "force-dynamic";
 
 /**
- * Retrieval depth: 10 chunks (dense-context directive). top_k alone was never
- * the real limiter — MAX_CONTEXT_CHARS in prompts/notes.ts is, and it is now
- * raised so ~8–10 of these actually reach the LLM instead of ~4–5.
+ * Retrieval depth: 10 chunks (dense-context directive).
  */
 const TOP_K = 10;
 
@@ -104,23 +84,13 @@ function cleanMarkdown(raw: string): string {
 
 /** CAIE-oriented query expansion terms per subject. */
 const EXPANSIONS: Record<SubjectId, string> = {
-  "pak-studies": "key dates chronology causes consequences significance",
-  islamiyat: "Qur\u2019anic verses Hadith teachings significance",
+  "pak-studies": "key dates chronology causes consequences significance notes",
+  islamiyat: "Qur\u2019anic verses Hadith events details significance background notes",
   urdu: "vocabulary idioms \u0645\u062d\u0627\u0648\u0631\u0627\u062a grammar comprehension",
 };
 
 /**
- * Build the targeted semantic query that scopes retrieval to the chosen
- * sub-topic (query-side scoping).
- *
- * The query MUST stay topic-focused: lead with the subject name + sub-topic
- * display label + humanised slug, plus a few subject-relevant expansion terms.
- * Generic instruction words ("AO1/AO2", "examiner report", "common mistakes",
- * "key points definitions") are NOT retrieval signals — they dominate the
- * embedding and pull generic mark-scheme boilerplate from unrelated topics.
- * Verified against the live KB: an instruction-stuffed query returned 0/16
- * on-topic chunks for the Khilafat Movement, while this lean form returns 7/16.
- * Those instructions live in the system prompt instead.
+ * Build the targeted semantic query that scopes retrieval to the chosen sub-topic.
  */
 function buildQuery(
   subject: SubjectId,
@@ -128,7 +98,7 @@ function buildQuery(
   topicLabel: string,
   slugKeywords: string
 ): string {
-  return `${subjectName} ${topicLabel}. ${slugKeywords}. ${EXPANSIONS[subject]} marking scheme`;
+  return `${subjectName} ${topicLabel}. ${slugKeywords}. ${EXPANSIONS[subject]}`;
 }
 
 /** Prefer joined document_* columns, falling back to the chunk metadata JSONB. */
@@ -205,7 +175,7 @@ export async function POST(
 ): Promise<Response> {
   const { subject: subjectParam } = await ctx.params;
 
-  // 1. Subject comes ONLY from the route — the context-isolation boundary.
+  // 1. Subject comes ONLY from the route.
   if (!isSubjectId(subjectParam)) {
     return jsonError("INVALID_SUBJECT", "Unknown subject in route.");
   }
@@ -214,7 +184,7 @@ export async function POST(
   const subjectName = meta?.name ?? subject;
   const subjectCode = meta?.code ?? "";
 
-  // 2. Parse + validate the body (any subject-like field is ignored entirely).
+  // 2. Parse + validate request body.
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -227,7 +197,7 @@ export async function POST(
   }
   const { paperCode, topicId } = parsedBody.data;
 
-  // 3. Validate section + sub-topic against the effective taxonomy.
+  // 3. Validate section + sub-topic against taxonomy.
   const taxonomy = getEffectiveTaxonomy(subject);
   if (!taxonomy) {
     return jsonError("UNKNOWN_TOPIC", "No taxonomy available for this subject.");
@@ -241,16 +211,13 @@ export async function POST(
   if (!topic) {
     return jsonError("UNKNOWN_TOPIC", "Unknown sub-topic for this subject/paper.");
   }
-  const topicLabel = topic.title; // authoritative — never trust the client label
+  const topicLabel = topic.title;
   const sectionLabel =
     paperCode !== "all"
       ? taxonomy.papers.find((p) => p.id === paperCode)?.title
       : undefined;
 
-  // 4. Retrieve context: subject-scoped semantic query PLUS a STRICT sub_topic
-  //    isolation filter (Islamiyat / Pakistan Studies only). match_kb_chunks
-  //    (migration 0006) keeps ONLY chunks whose metadata @> {"sub_topic": topicId};
-  //    Urdu passes no filter and retrieves its full general pool.
+  // 4. Retrieve context with primary strict pass and semantic fallback.
   const query = buildQuery(
     subject,
     subjectName,
@@ -263,8 +230,6 @@ export async function POST(
     rows = await searchKnowledgeBase(query, {
       subject_id: subject,
       topK: TOP_K,
-      // Strict isolation for subjects with a granular product map (Islamiyat,
-      // Pakistan Studies); Urdu (no granular tags) retrieves its general pool.
       filters: hasSubTopicMap(subject) ? { sub_topic: topicId } : undefined,
     });
   } catch (err) {
@@ -272,7 +237,7 @@ export async function POST(
     return jsonError("RETRIEVAL_FAILED", "Failed to retrieve source context.");
   }
 
-  // 5. No grounded context -> 200 with the guardrail notice, no LLM call.
+  // 5. No context found -> return 200 with guardrail notice.
   if (rows.length === 0) {
     const payload: NotesPayload = {
       subject,
@@ -290,15 +255,10 @@ export async function POST(
     return jsonOk(payload);
   }
 
-  // 6. Generate the markdown notes (one retry if the model returns nothing).
-  //    Resolve the OWNING paper of the selected sub-topic so the system prompt can
-  //    route Pakistan Studies Paper 2 to the dedicated Geography framework even
-  //    when the request's paperCode is "all". Falls back to the request paperCode.
+  // 6. Generate markdown notes via Groq.
   const owningPaperCode =
     taxonomy.papers.find((p) => p.topics.some((t) => t.id === topicId))?.id ??
     (paperCode !== "all" ? paperCode : undefined);
-  // Fix #3 — Geography (2059/02) notes are dense bullets, so they use the
-  // tighter 2_500-token output cap; every other subject keeps NOTES_MAX_TOKENS.
   const isPakGeography = subject === "pak-studies" && owningPaperCode === "2";
   const maxTokens = isPakGeography ? NOTES_MAX_TOKENS_GEOGRAPHY : NOTES_MAX_TOKENS;
   const systemPrompt = buildNotesSystemPrompt({
@@ -340,7 +300,7 @@ export async function POST(
     return jsonError("UPSTREAM_ERROR", "Failed to generate notes from context.");
   }
 
-  // 7. Assemble the payload contract.
+  // 7. Assemble final response payload.
   const payload: NotesPayload = {
     subject,
     subjectName,
