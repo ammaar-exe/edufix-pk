@@ -42,6 +42,8 @@ export interface AssistantContextChunk {
   paperCode: string | null;
   year: number | null;
   session: string | null;
+  /** metadata.sub_topic tag — topic provenance used to reject cross-topic chunks. */
+  subTopic: string | null;
   text: string;
 }
 
@@ -54,7 +56,7 @@ export interface BuildAssistantUserPromptArgs {
 /** Per-subject scaffolding emphasis, aligned to PRD §5. */
 const SUBJECT_ADDENDUM: Record<SubjectId, string> = {
   "pak-studies":
-    "Pakistan Studies (2059): scaffold cause–effect chains and chronological dates. Reflect the 3/4-mark (distinct factual statements), 7-mark (developed point(s) with cause and effect) and 14-mark (balanced both-sides argument + evaluation) structures for Paper 1; for Paper 2 demand geographical terminology and specific examples.",
+    "Pakistan Studies (2059): scaffold cause–effect chains and chronological dates. Reflect the 3/4-mark (distinct factual statements), 7-mark (developed point(s) with cause and effect) and 14-mark (balanced both-sides argument + evaluation) structures for Paper 1; for Paper 2 demand geographical terminology and specific examples. For Paper 2 Geography: treat station-specific diagram text, weather charts, or local graphs as localized sample data, NOT as macro-climate generalizations for all of Pakistan; prioritize general syllabus text over isolated diagram data unless the question explicitly asks about a specific diagram, station or chart.",
   islamiyat:
     "Islamiyat (2058): separate Part (a) 10-mark factual recall (precise Quranic/Hadith references, accurate dates, chronology) from Part (b) 4-mark evaluation and modern-day application. Supply verse or narration attributions ONLY when they appear verbatim in the context.",
   urdu:
@@ -89,6 +91,16 @@ Map this AO3 structure into the JSON contract: put the three parts — "Side A (
   // urdu subject only. Appended LAST so it overrides the English-framed rules
   // above (and drops the old English-gloss habit); AO3 is pak-studies only.
   const urduRule = subject === "urdu" ? `\n\n${URDU_OUTPUT_RULES}` : "";
+
+  // Issue 2 — Islamiyat (2058) cross-topic contamination guard. Each context
+  // chunk is surfaced with its "topic:" tag (metadata.sub_topic); the model must
+  // scaffold ONLY from chunks whose tag matches the question and discard any
+  // tagged to a different event/battle/Caliph/topic. Appended LAST for priority.
+  const islamiyatRule =
+    subject === "islamiyat"
+      ? `\n\nISLAMIYAT TOPIC BOUNDARY RULE (2058 — anti-cross-contamination, highest priority):
+Strictly enforce CAIE Islamiyat (2058) syllabus boundaries. Do NOT mix details between different historical events, Caliphs, or topics. Only utilize facts explicitly supported by the retrieved context for the specific topic queried. Each context chunk below is labelled with its source "topic:" tag. USE the chunks whose tag matches the question's topic AND any general-subject tag (e.g. "general2058"); DISCARD only chunks tagged to a DIFFERENT specific event, battle, Caliph or topic (e.g. never pull Migration to Abyssinia or Conquest of Makkah facts into a Hijrah-to-Madinah answer). Do NOT refuse or claim insufficient context merely because some retrieved chunks are off-topic — ground the scaffold in the on-topic and general chunks that remain. Never transfer a date, name, verse, Hadith or figure from one topic into another; if no on-topic or general chunk states a detail, omit that detail rather than borrowing it.`
+      : "";
 
   return `YOU ARE THE EDUFIX PK GUIDED ANSWER ASSISTANT FOR CAIE O LEVEL ${subjectUpper} (${subjectCode}).
 
@@ -129,7 +141,7 @@ OUTPUT CONTRACT — return a SINGLE JSON object and NOTHING else, matching exact
 - "requiredReferences": fragment bullets for dates, quotes, Quranic verses/Hadith, or terminology the marking scheme demands (ONLY those present in the context).
 - "terms": the CAIE key terminology appearing in that bullet.
 - If the context cannot ground the question, leave the arrays empty and put the guardrail sentence as the single "structure" bullet.
-- Do NOT wrap the JSON in markdown fences or add any commentary.${ao3Rule}${urduRule}`;
+- Do NOT wrap the JSON in markdown fences or add any commentary.${ao3Rule}${urduRule}${islamiyatRule}`;
 }
 
 /** Truncate a single chunk excerpt to the per-chunk cap. */
@@ -149,7 +161,8 @@ function formatChunkMeta(chunk: AssistantContextChunk): string {
     chunk.session,
     chunk.paperCode,
   ].filter((part): part is string => typeof part === "string" && part.length > 0);
-  return parts.length > 0 ? parts.join(" | ") : "source metadata unavailable";
+  const base = parts.length > 0 ? parts.join(" | ") : "source metadata unavailable";
+  return chunk.subTopic ? `${base} | topic: ${chunk.subTopic}` : base;
 }
 
 /**

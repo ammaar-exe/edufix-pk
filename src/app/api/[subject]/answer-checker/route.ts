@@ -38,6 +38,7 @@ import type {
 } from "@/lib/answer-checker/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 60; // Free-tier Groq generations can take 30-60s
 export const dynamic = "force-dynamic";
 
 /** Retrieval tuning: TOP_K caps the BLENDED result set (criteria + facts). */
@@ -129,14 +130,31 @@ function jsonOk(data: GradePayload): Response {
  * The KB has no literal notes/textbook chunks; its factual depth lives in the
  * marking_scheme / examiner_report / insert / past_paper chunks this surfaces.
  */
-function buildCriteriaQuery(subjectName: string, question: string): string {
+/**
+ * Query-dilution fix (same lesson as the notes route): for pak-studies the
+ * generic "CAIE O Level" prefix + instruction words dominate the mean-pooled
+ * embedding and retrieve insert covers / syllabus / other-topic mark schemes
+ * instead of the question's topic — verified live: the stuffed form returned
+ * ZERO Khilafat chunks for a Khilafat question, so the model honestly refused
+ * and emitted an empty 0/0 report. The lean forms below surface the topic's
+ * mark-scheme chunks (ranks 3-5). Islamiyat and Urdu keep their previous
+ * working query forms unchanged (Urdu's small KB needs the domain expansions
+ * to clear the similarity threshold).
+ */
+function buildCriteriaQuery(
+  subject: SubjectId,
+  subjectName: string,
+  question: string
+): string {
+  if (subject === "pak-studies") {
+    return `${question} marking scheme`;
+  }
   return `${subjectName} CAIE O Level. ${question} marking scheme marks awarded level descriptors`;
 }
 
-/** Subject-specific FACTUAL retrieval cues (lean, topic-focused — no generic instruction words). */
+/** Subject-specific FACTUAL retrieval cues. */
 const FACTUAL_EXPANSIONS: Record<SubjectId, string> = {
-  "pak-studies":
-    "key dates chronology names events treaties figures causes consequences significance",
+  "pak-studies": "",
   islamiyat:
     "Qur'anic verses Hadith references dates names events teachings significance",
   urdu: "vocabulary idioms \u0645\u062d\u0627\u0648\u0631\u0627\u062a grammar comprehension key terms",
@@ -147,6 +165,9 @@ function buildFactualQuery(
   subjectName: string,
   question: string
 ): string {
+  if (subject === "pak-studies") {
+    return question;
+  }
   return `${subjectName} CAIE O Level. ${question} ${FACTUAL_EXPANSIONS[subject]}`;
 }
 
@@ -216,6 +237,7 @@ function readMeta(row: VectorSearchResult) {
     paperCode: row.document_paper_code ?? str(md.paper_code),
     year: Number.isFinite(yearNum) ? yearNum : null,
     session: row.document_session ?? str(md.session),
+    subTopic: str(md.sub_topic),
   };
 }
 
@@ -229,6 +251,7 @@ function toContextChunk(row: VectorSearchResult, index: number): CheckerContextC
     paperCode: meta.paperCode,
     year: meta.year,
     session: meta.session,
+    subTopic: meta.subTopic,
     text: row.content ?? "",
   };
 }
@@ -334,7 +357,7 @@ export async function POST(
   //    concurrently and interleaved, so the model can write out the SPECIFIC
   //    missing facts instead of generic structural advice. allSettled keeps the
   //    request alive if one pass hiccups; only a total failure is fatal.
-  const criteriaQuery = buildCriteriaQuery(subjectName, question);
+  const criteriaQuery = buildCriteriaQuery(subject, subjectName, question);
   const factualQuery = buildFactualQuery(subject, subjectName, question);
   let rows: VectorSearchResult[];
   try {
@@ -418,6 +441,21 @@ export async function POST(
         throw err;
       }
       console.warn("[answer-checker] reply hit the token cap; retrying uncapped.");
+      model = await generateOnce(systemPrompt, userPrompt);
+    }
+    // The model occasionally emits a valid-schema but EMPTY refusal report even
+    // though grounded chunks were retrieved (observed live with 10 citations).
+    // Retry once — mirrors the notes route's empty-markdown retry.
+    if (
+      !(model.strengths ?? []).length &&
+      !(model.missing_elements ?? []).length &&
+      !(model.assigned_level ?? "").trim() &&
+      !(model.student_friendly_explanation ?? "").trim() &&
+      !(model.exemplar_full_mark_answer ?? "").trim()
+    ) {
+      console.error(
+        "[answer-checker] empty report despite grounded context; retrying once"
+      );
       model = await generateOnce(systemPrompt, userPrompt);
     }
   } catch (err) {

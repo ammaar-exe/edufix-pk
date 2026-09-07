@@ -45,6 +45,7 @@ import type {
 } from "@/lib/answer-assistant/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 60; // Free-tier Groq generations can take 30-60s
 export const dynamic = "force-dynamic";
 
 /** Retrieval tuning. */
@@ -111,8 +112,18 @@ function buildQuery(
   subjectName: string,
   question: string
 ): string {
+  // Query-dilution fix (same lesson as the notes route): for pak-studies the
+  // generic prefix + instruction words dominate the mean-pooled embedding and
+  // retrieve insert covers / syllabus / other-topic mark schemes instead of the
+  // question's topic. Verified live: a lean question-only query surfaces the
+  // on-topic Khilafat/1857 mark-scheme chunks the stuffed form never returned.
+  // Islamiyat and Urdu keep their expansions — Urdu's KB is small and needs the
+  // domain terms to clear the similarity threshold.
+  if (subject === "pak-studies") {
+    return question;
+  }
   const expansions: Record<SubjectId, string> = {
-    "pak-studies": "causes consequences significance dates marking scheme levels",
+    "pak-studies": "",
     islamiyat: "Qur\u2019anic verses Hadith references part (a) part (b) marking scheme",
     urdu: "vocabulary idioms \u0645\u062d\u0627\u0648\u0631\u0627\u062a format directed writing marking scheme",
   };
@@ -124,6 +135,11 @@ function toContextChunk(
   row: VectorSearchResult,
   index: number
 ): AssistantContextChunk {
+  const md = (row.metadata ?? {}) as Record<string, unknown>;
+  const subTopic =
+    typeof md.sub_topic === "string" && md.sub_topic.length > 0
+      ? md.sub_topic
+      : null;
   return {
     id: `c${index + 1}`,
     title: row.document_title,
@@ -131,6 +147,7 @@ function toContextChunk(
     paperCode: row.document_paper_code,
     year: row.document_year,
     session: row.document_session,
+    subTopic,
     text: row.content ?? "",
   };
 }
@@ -345,6 +362,25 @@ export async function POST(
         systemPrompt,
         userPrompt,
         violations,
+        capMaxTokens
+      );
+      normalized = toDraft(model);
+    }
+
+    // 5a-bis. Empty scaffold despite grounded context → single retry (the
+    // "thin generation" flake: the model occasionally returns a valid-schema
+    // but empty JSON, or a guardrail-only structure bullet with zero keyPoints,
+    // which would otherwise surface as a useless/insufficientContext scaffold).
+    // We are past the rows.length===0 early return, so grounded citations exist
+    // and a zero-keyPoints scaffold is always degenerate — retry once.
+    if (normalized.keyPoints.length === 0) {
+      console.error(
+        "[answer-assistant] empty scaffold despite grounded context; retrying once"
+      );
+      model = await generateWithCap(
+        systemPrompt,
+        userPrompt,
+        undefined,
         capMaxTokens
       );
       normalized = toDraft(model);

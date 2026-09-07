@@ -29,13 +29,31 @@ import type {
 } from "@/lib/notes/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 30; // Max execution duration for Vercel/Serverless
+export const maxDuration = 60; // Free-tier Groq generations can take 30-60s
 export const dynamic = "force-dynamic";
 
 /**
  * Retrieval depth: 10 chunks (dense-context directive).
  */
 const TOP_K = 10;
+
+/**
+ * History (2059/01) strict chapter-isolation retrieval tuning — Issue 2.
+ *
+ * The LIVE match_kb_chunks RPC is the loose variant: for a requested sub_topic it
+ * admits `slug OR general% OR untagged`, so the whole general2059 pool (1857,
+ * every other era, geography, syllabus meta-text) competes with — and crowds out
+ * — the on-topic chunks within the RPC's LIMIT. To enforce true chapter/topic
+ * isolation without a DB migration, the route fetches a WIDE candidate pool and
+ * then keeps ONLY chunks tagged exactly the requested slug.
+ *
+ * 50 is the RPC's hard `match_top_k` cap (larger values are clamped server-side),
+ * and 0.40 is permissive enough that all 19 History sub-topics still recover >=1
+ * on-topic chunk at pool=50 (verified), while the exact-slug post-filter
+ * guarantees ZERO cross-era chunks reach the model.
+ */
+const HISTORY_CANDIDATE_POOL = 50;
+const HISTORY_STRICT_THRESHOLD = 0.4;
 
 /** Request body contract validated with zod v4. */
 const bodySchema = z.object({
@@ -153,6 +171,53 @@ function toCitations(rows: VectorSearchResult[]): NoteCitation[] {
   });
 }
 
+/**
+ * Geography (2059/02) retrieval re-ranking — Issue 1 (diagram over-reliance).
+ *
+ * CAIE "Insert" booklets (category `insert`) and figure/table/graph/chart
+ * captions carry STATION-SPECIFIC diagram data (e.g. one city's rainfall chart).
+ * Ranked purely by cosine similarity, that localized data crowds out core
+ * syllabus/textbook explanation, and the model then generalises a single
+ * station's readings across all of Pakistan's climate zones.
+ *
+ * This demotes standalone diagram/figure/table chunks BELOW core explanatory
+ * content so the TOP_K sent to the model is led by syllabus/notes/mark-scheme
+ * prose. Diagrams are DEMOTED, never dropped: a sub-topic that genuinely asks
+ * about a specific figure still surfaces it once core content is exhausted.
+ */
+const GEOGRAPHY_CORE_CATEGORIES = new Set(["notes", "syllabus"]);
+const GEOGRAPHY_DIAGRAM_CATEGORIES = new Set(["insert"]);
+const FIGURE_CAPTION_RE = /\b(?:fig\.?|figure|table|graph|chart|map)\s*\d+\b/i;
+
+/** Rank tier for one Geography chunk: 2 = core text, 1 = other CAIE text, 0 = diagram. */
+function geographyChunkPriority(row: VectorSearchResult): number {
+  const md = row.metadata ?? {};
+  const category = String(
+    row.document_category ??
+      (typeof md.category === "string" ? md.category : "") ??
+      ""
+  ).toLowerCase();
+  const content = row.content ?? "";
+  const isDiagram =
+    GEOGRAPHY_DIAGRAM_CATEGORIES.has(category) || FIGURE_CAPTION_RE.test(content);
+  if (isDiagram) return 0;
+  if (GEOGRAPHY_CORE_CATEGORIES.has(category)) return 2;
+  return 1;
+}
+
+/**
+ * Stable re-rank: core content first, diagrams last; within a tier the incoming
+ * similarity order is preserved (rows arrive sorted by similarity DESC).
+ */
+function prioritiseGeographyChunks(
+  rows: VectorSearchResult[]
+): VectorSearchResult[] {
+  return rows
+    .map((row, index) => ({ row, index, priority: geographyChunkPriority(row) }))
+    .sort((a, b) => b.priority - a.priority || a.index - b.index)
+    .map((entry) => entry.row);
+}
+
 /** Call the model once for markdown notes. */
 async function generateMarkdown(
   systemPrompt: string,
@@ -217,7 +282,26 @@ export async function POST(
       ? taxonomy.papers.find((p) => p.id === paperCode)?.title
       : undefined;
 
-  // 4. Retrieve context with primary strict pass and semantic fallback.
+  // Owning paper/section of the selected sub-topic ("1" = History, "2" =
+  // Geography for Pakistan Studies), robust to paperCode === "all". Resolved
+  // BEFORE retrieval so the Geography diagram de-prioritisation pass can size
+  // its candidate pool; also drives the dedicated Geography prompt route.
+  const owningPaperCode =
+    taxonomy.papers.find((p) => p.topics.some((t) => t.id === topicId))?.id ??
+    (paperCode !== "all" ? paperCode : undefined);
+  const isPakGeography = subject === "pak-studies" && owningPaperCode === "2";
+  const isPakHistory = subject === "pak-studies" && owningPaperCode === "1";
+
+  // 4. Retrieve context. The sub_topic filter is the chapter/topic metadata
+  //    isolation. Retrieval strategy is PAPER-AWARE because the live RPC admits
+  //    the whole general2059 pool alongside any requested slug:
+  //      • History (Issue 2): strict isolation — wide pool, then keep ONLY exact
+  //        slug-tagged chunks so cross-era general2059 content (1857, other
+  //        movements, geography, syllabus meta-text) can never enter the context.
+  //      • Geography (Issue 1): keep the general pool (its climate sub-topic tags
+  //        are thin and the real macro-climate text lives there), pull a wider
+  //        2 × TOP_K pool, then demote station-specific diagram/insert chunks.
+  //      • Other subjects: unchanged single strict pass + semantic fallback.
   const query = buildQuery(
     subject,
     subjectName,
@@ -227,11 +311,32 @@ export async function POST(
 
   let rows: VectorSearchResult[];
   try {
-    rows = await searchKnowledgeBase(query, {
-      subject_id: subject,
-      topK: TOP_K,
-      filters: hasSubTopicMap(subject) ? { sub_topic: topicId } : undefined,
-    });
+    if (isPakHistory) {
+      rows = await searchKnowledgeBase(query, {
+        subject_id: subject,
+        topK: HISTORY_CANDIDATE_POOL,
+        threshold: HISTORY_STRICT_THRESHOLD,
+        filters: { sub_topic: topicId },
+      });
+      // Strict chapter isolation: drop every general/other-slug chunk the loose
+      // RPC admitted, keeping ONLY chunks tagged exactly this sub-topic.
+      rows = rows
+        .filter((row) => String((row.metadata ?? {}).sub_topic ?? "") === topicId)
+        .slice(0, TOP_K);
+    } else {
+      rows = await searchKnowledgeBase(query, {
+        subject_id: subject,
+        topK: isPakGeography ? TOP_K * 2 : TOP_K,
+        filters: hasSubTopicMap(subject) ? { sub_topic: topicId } : undefined,
+      });
+      // Geography re-rank: demote standalone figure/diagram/table/insert chunks
+      // below core explanatory content, then keep the top TOP_K. Diagrams are
+      // demoted, never dropped, so a genuinely figure-specific sub-topic still
+      // surfaces them once core content is exhausted.
+      if (isPakGeography) {
+        rows = prioritiseGeographyChunks(rows).slice(0, TOP_K);
+      }
+    }
   } catch (err) {
     console.error("[notes] retrieval failed:", err);
     return jsonError("RETRIEVAL_FAILED", "Failed to retrieve source context.");
@@ -256,10 +361,6 @@ export async function POST(
   }
 
   // 6. Generate markdown notes via Groq.
-  const owningPaperCode =
-    taxonomy.papers.find((p) => p.topics.some((t) => t.id === topicId))?.id ??
-    (paperCode !== "all" ? paperCode : undefined);
-  const isPakGeography = subject === "pak-studies" && owningPaperCode === "2";
   const maxTokens = isPakGeography ? NOTES_MAX_TOKENS_GEOGRAPHY : NOTES_MAX_TOKENS;
   const systemPrompt = buildNotesSystemPrompt({
     subject,

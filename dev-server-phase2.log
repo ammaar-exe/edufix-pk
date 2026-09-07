@@ -1,0 +1,263 @@
+
+> edufix-pk@0.1.0 dev
+> next dev
+
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\Osama\package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * C:\Users\Osama\Downloads\edufix-pk\package-lock.json
+
+   ▲ Next.js 15.5.24
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.1.9:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+ ✓ Ready in 5.9s
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 3.9s (175 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (107kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (259kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+ ○ Compiling /login ...
+ ✓ Compiled /login in 15.3s (715 modules)
+ GET /login 200 in 19149ms
+ GET /login 200 in 152ms
+ ○ Compiling /api/[subject]/answer-assistant ...
+ ✓ Compiled /api/[subject]/answer-assistant in 6.4s (1058 modules)
+ POST /api/islamiyat/answer-assistant 200 in 188145ms
+ ○ Compiling /api/[subject]/notes ...
+ ✓ Compiled /api/[subject]/notes in 6.5s (730 modules)
+ ○ Compiling /api/ocr ...
+ ✓ Compiled /api/ocr in 766ms (733 modules)
+ POST /api/ocr 200 in 4748ms
+ POST /api/pak-studies/notes 200 in 28310ms
+ POST /api/islamiyat/notes 200 in 15872ms
+ POST /api/urdu/notes 200 in 2980ms
+ ○ Compiling /api/[subject]/answer-assistant ...
+ ✓ Compiled /api/[subject]/answer-assistant in 851ms (447 modules)
+ POST /api/pak-studies/answer-assistant 200 in 8636ms
+ POST /api/urdu/answer-assistant 200 in 5626ms
+ ○ Compiling /api/[subject]/answer-checker ...
+ ✓ Compiled /api/[subject]/answer-checker in 946ms (730 modules)
+ POST /api/pak-studies/answer-checker 200 in 24299ms
+ POST /api/islamiyat/answer-checker 200 in 2446ms
+ POST /api/urdu/answer-checker 200 in 20713ms
+ POST /api/pak-studies/answer-checker 200 in 5683ms
+ POST /api/islamiyat/answer-checker 200 in 7726ms
+ POST /api/pak-studies/answer-assistant 200 in 4982ms
+ ✓ Compiled in 11.5s (300 modules)
+ ✓ Compiled in 800ms (300 modules)
+ ✓ Compiled in 522ms (300 modules)
+ ○ Compiling /api/[subject]/answer-checker ...
+ ✓ Compiled /api/[subject]/answer-checker in 1589ms (441 modules)
+ POST /api/pak-studies/answer-checker 200 in 16353ms
+ ○ Compiling /api/[subject]/answer-assistant ...
+ ✓ Compiled /api/[subject]/answer-assistant in 31.8s (742 modules)
+ POST /api/pak-studies/answer-assistant 200 in 33094ms
+ ○ Compiling /api/[subject]/answer-checker ...
+ ✓ Compiled /api/[subject]/answer-checker in 572ms (444 modules)
+ POST /api/islamiyat/answer-checker 200 in 28907ms
+ POST /api/urdu/answer-checker 200 in 10531ms
+ ✓ Compiled in 4.9s (300 modules)
+ ✓ Compiled in 799ms (300 modules)
+ ○ Compiling /api/[subject]/answer-checker ...
+ ✓ Compiled /api/[subject]/answer-checker in 1496ms (441 modules)
+ POST /api/islamiyat/answer-checker 200 in 29655ms
+ POST /api/islamiyat/answer-checker 200 in 57269ms
+ ○ Compiling / ...
+ ✓ Compiled / in 27.8s (1013 modules)
+ GET / 200 in 6535ms
+ ○ Compiling /favicon.ico ...
+ ✓ Compiled /favicon.ico in 2.3s (589 modules)
+ GET /favicon.ico 200 in 2621ms
+ ✓ Compiled /login in 234ms (595 modules)
+ GET /login 200 in 533ms
+@supabase/ssr: chunked cookie decoded to invalid JSON, treating as absent. This usually indicates that cookie chunks from different writes were combined (e.g. response committed before all Set-Cookie headers were sent).
+@supabase/ssr: chunked cookie decoded to invalid JSON, treating as absent. This usually indicates that cookie chunks from different writes were combined (e.g. response committed before all Set-Cookie headers were sent).
+@supabase/ssr: chunked cookie decoded to invalid JSON, treating as absent. This usually indicates that cookie chunks from different writes were combined (e.g. response committed before all Set-Cookie headers were sent).
+ GET / 200 in 85ms
+ GET / 200 in 38ms
+ ○ Compiling /[subject]/notes ...
+ ✓ Compiled /[subject]/notes in 6.8s (1642 modules)
+ GET /pak-studies/notes 200 in 10243ms
+ GET /pak-studies/notes 200 in 64ms
+ ○ Compiling /api/[subject]/notes ...
+ ✓ Compiled /api/[subject]/notes in 2.7s (1249 modules)
+ POST /api/pak-studies/notes 200 in 37240ms
+ POST /api/pak-studies/notes 200 in 5075ms
+ POST /api/pak-studies/notes 200 in 9204ms
+ POST /api/pak-studies/notes 200 in 6032ms
+ ○ Compiling /[subject]/answer-assistant ...
+ ✓ Compiled /[subject]/answer-assistant in 32.9s (1665 modules)
+ GET /pak-studies/answer-assistant 200 in 6660ms
+ GET /pak-studies/answer-assistant 200 in 36213ms
+ GET /pak-studies/answer-assistant 200 in 5323ms
+ GET /pak-studies/answer-assistant 200 in 80ms
+ ○ Compiling /[subject]/answer-checker ...
+ ✓ Compiled /[subject]/answer-checker in 1902ms (1667 modules)
+ GET /pak-studies/answer-checker 200 in 4235ms
+ GET /pak-studies/answer-checker 200 in 46ms
+ GET /pak-studies/answer-checker 200 in 46ms
+ GET /pak-studies/answer-assistant 200 in 528ms
+ GET /pak-studies/notes 200 in 1504ms
+ GET /pak-studies/notes 200 in 38ms
+ GET /pak-studies/answer-assistant 200 in 723ms
+ GET /pak-studies/answer-checker 200 in 39ms
+ ○ Compiling /api/[subject]/answer-checker ...
+ ✓ Compiled /api/[subject]/answer-checker in 11.9s (1273 modules)
+ POST /api/pak-studies/answer-checker 200 in 50220ms
+ GET /pak-studies/answer-assistant 200 in 423ms
+ GET /pak-studies/answer-checker 200 in 218ms
+ POST /api/pak-studies/answer-checker 200 in 10394ms
+ POST /api/pak-studies/answer-checker 200 in 8287ms
+ POST /api/pak-studies/answer-checker 200 in 47591ms
+ GET /pak-studies/answer-assistant 200 in 368ms
+ GET /pak-studies/notes 200 in 301ms
+ GET /pak-studies/answer-assistant 200 in 112ms
+ GET /pak-studies/answer-checker 200 in 102ms
+ GET /pak-studies/answer-assistant 200 in 199ms
+ POST /api/pak-studies/answer-checker 200 in 6164ms
+ POST /api/pak-studies/answer-checker 200 in 24479ms
+ GET /islamiyat/answer-assistant 200 in 146ms
+ GET /islamiyat/answer-checker 200 in 117ms
+ GET /islamiyat/answer-assistant 200 in 145ms
+ GET /islamiyat/notes 200 in 127ms
+ GET /islamiyat/notes 200 in 105ms
+ GET /islamiyat/answer-assistant 200 in 123ms
+ GET /islamiyat/answer-checker 200 in 120ms
+ GET /islamiyat/notes 200 in 87ms
+ GET /islamiyat/notes 200 in 81ms
+ ○ Compiling /api/[subject]/notes ...
+ ✓ Compiled /api/[subject]/notes in 17.1s (1275 modules)
+ POST /api/islamiyat/notes 200 in 58393ms
+ GET /islamiyat/answer-assistant 200 in 1354ms
+ GET /islamiyat/notes?activityId=ba90e626-8b7e-424c-b875-427edc4757fb 200 in 419ms
+ GET /islamiyat/answer-assistant 200 in 318ms
+ POST /api/islamiyat/answer-checker 200 in 9547ms
+ GET /urdu/answer-assistant 200 in 107ms
+ GET /urdu/answer-checker 200 in 211ms
+ GET /urdu/answer-assistant 200 in 101ms
+[answer-checker] reply hit the token cap; retrying uncapped.
+ POST /api/urdu/answer-checker 200 in 16085ms
+ GET /urdu/answer-assistant 200 in 106ms
+ GET /urdu/answer-assistant 200 in 72ms
+ GET /urdu/answer-assistant 200 in 69ms
+ ✓ Compiled in 42.9s (1691 modules)
+ GET /urdu/answer-assistant 200 in 1060ms
+ ✓ Compiled in 17.5s (758 modules)
+ ✓ Compiled in 40.2s (758 modules)
+ GET /urdu/answer-assistant 200 in 20126ms
+ ✓ Compiled in 11.5s (758 modules)
+ GET /urdu/answer-assistant 200 in 1756ms
+ GET /urdu/answer-assistant 200 in 161ms
+ ✓ Compiled in 20.7s (758 modules)
+ ✓ Compiled in 1039ms (758 modules)
+ GET /urdu/answer-assistant 200 in 250ms
+ GET /urdu/answer-assistant 200 in 95ms
+ ✓ Compiled in 1143ms (758 modules)
+ ✓ Compiled in 1270ms (758 modules)
+ GET /urdu/answer-assistant 200 in 122ms
+ GET /urdu/answer-assistant 200 in 148ms
+ ✓ Compiled in 1337ms (758 modules)
+ GET /urdu/answer-assistant 200 in 209ms
+ ✓ Compiled in 975ms (758 modules)
+ GET /urdu/answer-assistant 200 in 246ms
+ ✓ Compiled in 2.9s (758 modules)
+ GET /urdu/answer-assistant 200 in 1023ms
+ ✓ Compiled in 4.2s (758 modules)
+ GET /urdu/answer-assistant 200 in 1461ms
+ ✓ Compiled in 6.9s (758 modules)
+ GET /urdu/answer-assistant 200 in 992ms
+ ✓ Compiled in 2.8s (758 modules)
+ GET /urdu/answer-assistant 200 in 2419ms
+ GET / 200 in 3858ms
+ GET /pak-studies/answer-assistant 200 in 1139ms
+ GET /pak-studies/answer-checker 200 in 663ms
+ GET /pak-studies/answer-assistant 200 in 166ms
+ ○ Compiling /api/[subject]/answer-assistant ...
+ ✓ Compiled /api/[subject]/answer-assistant in 22.5s (1287 modules)
+ GET /pak-studies/answer-assistant 200 in 2030ms
+ POST /api/islamiyat/answer-assistant 200 in 68411ms
+ ✓ Compiled in 14.5s (1691 modules)
+ GET /pak-studies/answer-assistant 200 in 5381ms
+ ✓ Compiled in 2.2s (758 modules)
+ GET /pak-studies/answer-assistant 200 in 363ms
+ ✓ Compiled in 1781ms (758 modules)
+ GET /pak-studies/answer-assistant 200 in 246ms
+ ○ Compiling /api/[subject]/answer-assistant ...
+ ✓ Compiled /api/[subject]/answer-assistant in 3.9s (1287 modules)
+ GET /pak-studies/answer-assistant 200 in 37807ms
+[answer-assistant] prose detected in 1 field(s); retrying: [ 'requiredReferences[0]' ]
+ POST /api/islamiyat/answer-assistant 200 in 138352ms
+ ✓ Compiled in 75.8s (1691 modules)
+ GET /pak-studies/answer-assistant 200 in 18837ms
+ GET /pak-studies/answer-assistant 200 in 419ms
+ GET / 200 in 2057ms
+ GET / 200 in 909ms
+ GET /pak-studies/notes 200 in 569ms
+ GET /pak-studies/answer-assistant 200 in 169ms
+ GET /pak-studies/answer-checker 200 in 401ms
+ GET /pak-studies/answer-checker 200 in 180ms
+ GET /pak-studies/notes 200 in 8011ms
+ GET /pak-studies/answer-checker 200 in 794ms
+ GET /pak-studies/notes 200 in 208ms
+ GET /pak-studies/notes 200 in 187ms
+ ○ Compiling /api/[subject]/notes ...
+ ✓ Compiled /api/[subject]/notes in 25.6s (1286 modules)
+ GET /pak-studies/notes 200 in 64841ms
+ POST /api/pak-studies/notes 200 in 172877ms
+ POST /api/pak-studies/notes 200 in 11670ms
+ POST /api/pak-studies/notes 200 in 3836ms
+ POST /api/pak-studies/notes 200 in 26268ms
+ GET /islamiyat/notes 200 in 831ms
+ POST /api/islamiyat/notes 200 in 11801ms
+ GET /islamiyat/answer-assistant 200 in 1364ms
+ GET /islamiyat/answer-assistant 200 in 193ms
+ ○ Compiling /api/[subject]/answer-assistant ...
+ ✓ Compiled /api/[subject]/answer-assistant in 16.7s (1287 modules)
+ POST /api/islamiyat/answer-assistant 200 in 56815ms
+ GET /urdu/answer-assistant 200 in 2200ms
+ POST /api/urdu/answer-assistant 200 in 6098ms
+ GET /pak-studies/answer-assistant 200 in 152ms
+[groq] model "openai/gpt-oss-120b" rate-limited; retrying on "qwen/qwen3.8-27b".
+ POST /api/pak-studies/answer-assistant 200 in 5431ms
+ GET /pak-studies/notes 200 in 349ms
+ GET /pak-studies/notes 200 in 114ms
+ GET /pak-studies/answer-assistant 200 in 141ms
+ POST /api/pak-studies/answer-assistant 200 in 7130ms
+ ✓ Compiled in 48.7s (1691 modules)
+ ✓ Compiled in 53.7s (758 modules)
+ GET /pak-studies/answer-assistant 200 in 36873ms
+ ✓ Compiled in 75.5s (758 modules)
+ GET /pak-studies/answer-assistant 200 in 5978ms
+ ✓ Compiled in 15.9s (758 modules)
+ GET /pak-studies/answer-assistant 200 in 3702ms
+ GET /pak-studies/answer-assistant 200 in 2438ms
+ ✓ Compiled in 14.4s (758 modules)
+ ✓ Compiled in 20.9s (758 modules)
+ GET /pak-studies/answer-assistant 200 in 28500ms
+ ✓ Compiled in 20.4s (758 modules)
+ GET /pak-studies/answer-assistant 200 in 888ms
+ GET /pak-studies/answer-assistant 200 in 621ms
+ ✓ Compiled in 4.2s (758 modules)
+ GET /pak-studies/answer-assistant 200 in 184ms
+ GET / 200 in 2404ms
+ ○ Compiling /api/[subject]/notes ...
+ ✓ Compiled /api/[subject]/notes in 83.2s (1286 modules)
+ GET /pak-studies/answer-assistant 200 in 10262ms
+ POST /api/pak-studies/notes 200 in 170219ms
+[groq] model "openai/gpt-oss-120b" rate-limited; retrying on "qwen/qwen3.8-27b".
+ GET / 200 in 2262ms
+ GET /api/pak-studies/notes 405 in 475ms
+ POST /api/pak-studies/notes 200 in 8132ms
+[groq] model "openai/gpt-oss-120b" rate-limited; retrying on "qwen/qwen3.8-27b".
+ POST /api/pak-studies/notes 200 in 7942ms
+ ✓ Compiled in 34.2s (758 modules)
+ GET /pak-studies/answer-assistant 200 in 6262ms

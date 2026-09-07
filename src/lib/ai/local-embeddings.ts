@@ -8,6 +8,8 @@
  * so no schema migration is needed. Query embeddings MUST use the same model that
  * embedded the stored kb_chunks. Loaded lazily from search.ts.
  */
+import path from "node:path";
+
 import { getServerEnv } from "@/lib/env";
 
 type LocalEmbedder = (
@@ -20,14 +22,30 @@ let extractorPromise: Promise<LocalEmbedder> | null = null;
 function getLocalEmbedder(): Promise<LocalEmbedder> {
   if (!extractorPromise) {
     const model = getServerEnv().LOCAL_EMBEDDING_MODEL;
-    extractorPromise = import("@xenova/transformers").then(
-      async ({ pipeline, env }) => {
+    extractorPromise = import("@xenova/transformers")
+      .then(async ({ pipeline, env }) => {
         // Use the HF hub/cache; don't probe a local ./models directory.
         env.allowLocalModels = false;
+        // Pin the cache OUTSIDE node_modules so the ~470MB model download
+        // survives dependency reinstalls (default cache lives inside the
+        // package directory and is deleted by `npm install`).
+        env.cacheDir = path.join(process.cwd(), ".xenova-cache");
         const extractor = await pipeline("feature-extraction", model);
         return extractor as unknown as LocalEmbedder;
-      }
-    );
+      })
+      .catch((err) => {
+        // Clear the memoized promise so the next request retries the load
+        // instead of the server staying broken until a restart.
+        extractorPromise = null;
+        console.error(
+          `[local-embeddings] failed to load model "${model}" (cache: ${path.join(
+            process.cwd(),
+            ".xenova-cache"
+          )}):`,
+          err
+        );
+        throw err;
+      });
   }
 
   return extractorPromise;

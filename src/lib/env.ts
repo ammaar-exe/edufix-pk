@@ -18,10 +18,11 @@ const serverEnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   SUPABASE_DB_URL: z.string().min(1).optional(),
 
-  // Google Gemini — embeddings (gemini-embedding-001) + vision/OCR (gemini-2.5-flash)
+  // Google Gemini — embeddings (gemini-embedding-001) + vision/OCR (gemini-3.6-flash).
+  // gemini-2.5-flash is no longer available to new users (404), so default to its successor.
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_EMBEDDING_MODEL: z.string().default("gemini-embedding-001"),
-  GEMINI_VISION_MODEL: z.string().default("gemini-2.5-flash"),
+  GEMINI_VISION_MODEL: z.string().default("gemini-3.6-flash"),
 
   // Groq — primary LLM (OpenAI-compatible API)
   // groq-sdk appends /openai/v1 automatically; baseURL must be the host root.

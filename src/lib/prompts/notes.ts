@@ -105,6 +105,13 @@ export function buildNotesSystemPrompt(args: BuildNotesSystemPromptArgs): string
   // paper is threaded in by the route (robust to paperCode === "all").
   const isPakGeography = subject === "pak-studies" && paperCode === "2";
 
+  // Issue 2 — dedicated CAIE History (2059/01) route. Paper 1 of Pakistan
+  // Studies is History (1906–1947); it needs strict event/era isolation and the
+  // CAIE Background→Key Events→Effects structure, and must NOT inherit the
+  // Geography spatial/diagram rules. Resolved from the owning paper, robust to
+  // paperCode === "all".
+  const isPakHistory = subject === "pak-studies" && paperCode === "1";
+
   const urduAddendum =
     subject === "urdu"
       ? "\n- LANGUAGE: Write the notes in Urdu script where the subject matter is Urdu. Preserve all Urdu-script vocabulary, idioms and quotations (محاورات) verbatim, each followed by a concise English gloss in brackets."
@@ -122,9 +129,23 @@ You must rely EXCLUSIVELY on the retrieved text chunks provided in the context. 
   // retrieved chunks remain the sole source of any figure actually written.
   const eventIsolationRule =
     subject === "islamiyat"
-      ? `\n\nEVENT ISOLATION RULE (${subjectCode}/01 Islamiyat — anti-cross-contamination):
-Never mix events across historical battles. For ${subjectCode}/01 Islamiyat, double-check every date, casualty number and martyrdom AGAINST THE PROVIDED CHUNKS before writing it. Canonical anchors: Badr = 14 martyrs / 624 AD / 2 AH. Uhud = 70 martyrs / 625 AD / 3 AH. Do NOT transfer details, names or figures between these battles. If the chunks retrieved for "${subTopicDisplayName}" do not explicitly state a figure, do NOT supply it from the other battle or from memory.`
+      ? `\n\nEVENT ISOLATION RULE (${subjectCode}/01 Islamiyat — anti-cross-contamination, highest priority):
+Strictly enforce CAIE Islamiyat (2058) syllabus boundaries. Do NOT mix details between different historical events, Caliphs, or topics. Only utilize facts explicitly supported by the retrieved context for the specific topic queried.
+Never mix events across historical battles. For ${subjectCode}/01 Islamiyat, double-check every date, casualty number and martyrdom AGAINST THE PROVIDED CHUNKS before writing it. Canonical anchors: Badr = 14 martyrs / 624 AD / 2 AH. Uhud = 70 martyrs / 625 AD / 3 AH. Do NOT transfer details, names or figures between these battles, between Caliphs, or between any two topics. If the chunks retrieved for "${subTopicDisplayName}" do not explicitly state a figure, do NOT supply it from another event, Caliph or topic, or from memory.`
       : "";
+
+  // Issue 2 — History event-isolation & structure rule (2059/01 only). History
+  // notes were bleeding dates/personalities/causes across eras (e.g. the 1857 War
+  // of Independence mixed with 20th-century political movements). These are the
+  // product owner's verbatim constraints, plus the mapping of the required
+  // Background/Causes → Key Events & Figures → Immediate/Long-term Effects
+  // structure onto the fixed 5-section output skeleton below.
+  const historyEventRule = isPakHistory
+    ? `\n\nHISTORY EVENT-ISOLATION & STRUCTURE RULE (${subjectCode}/01 Pakistan Studies History — anti-cross-contamination, highest priority):
+Strictly align notes with the specific topic queried. Do NOT cross-contaminate events, key figures, or dates from unrelated historical periods.
+Format notes into clear CAIE-compliant sections: Background/Causes, Key Events & Figures, and Immediate/Long-term Effects. Within the fixed output skeleton below, organise Section 2 (Comprehensive Topic Analysis) under the bolded sub-headings **Background / Causes** and **Key Events & Figures**, and organise Section 3 (High-Mark Exam Evaluation) under **Immediate Effects** and **Long-term Effects** before the Level-4 verdict.
+Every date, personality, treaty clause and consequence MUST be drawn ONLY from the retrieved chunks for "${subTopicDisplayName}". Never transfer a figure, date, cause or event between historical periods — in particular, do NOT mix the 1857 War of Independence with the Khilafat Movement, the Lahore Resolution, the Cabinet Mission, or any other 20th-century political movement. If the chunks for this topic do not state a date or name, omit it rather than borrowing it from another era.`
+    : "";
 
   // Fix #2 / spatial-fix — Geography spatial-grounding rule (2059/02 only). Now
   // reconciled with the SPATIAL BOUNDARY MATRIX: directions/distances/coordinates
@@ -132,7 +153,10 @@ Never mix events across historical battles. For ${subjectCode}/01 Islamiyat, dou
   // against the hardcoded matrix so landforms are never mixed across provinces.
   const geographySpatialRule = isPakGeography
     ? `\n\nGEOGRAPHY SPATIAL-GROUNDING RULE (${subjectCode}/02 — highest priority):
-All location facts, desert positions, drainage systems, and canal projects MUST strictly align with the provided chunks. Never guess directions (north/south/east/west), distances, elevations or coordinates the chunks do not state. For the PROVINCIAL placement of a named landform, cross-check it against the SPATIAL BOUNDARY MATRIX below and never assign a feature to a province the matrix does not list it under. Where chunks and matrix agree, state the location; where the chunks are silent, rely on the matrix for province ONLY; where the chunks explicitly contradict the matrix, the CHUNKS win.`
+All location facts, desert positions, drainage systems, and canal projects MUST strictly align with the provided chunks. Never guess directions (north/south/east/west), distances, elevations or coordinates the chunks do not state. For the PROVINCIAL placement of a named landform, cross-check it against the SPATIAL BOUNDARY MATRIX below and never assign a feature to a province the matrix does not list it under. Where chunks and matrix agree, state the location; where the chunks are silent, rely on the matrix for province ONLY; where the chunks explicitly contradict the matrix, the CHUNKS win.
+DIAGRAM / STATION-DATA RULE: Treat station-specific diagram text, weather charts, or local graphs as localized sample data, NOT as macro-climate generalizations for all of Pakistan. Prioritize general syllabus text over isolated diagram data unless the sub-topic explicitly asks about a specific diagram, station or chart; never present one station's readings (temperature, rainfall, humidity) as the national climate of Pakistan.
+CLIMATE-ZONE GENERALISATION RULE (highest priority): Do NOT generalize data from a single city graph or diagram (e.g., Jacobabad temperature charts or Murree rainfall figures) across all climate zones of Pakistan.
+Differentiate clearly between the 4 main climatic zones (Highland, Lowland, Coastal, Arid/Semi-Arid) using macro-geographical concepts rather than isolated station diagram metrics.`
     : "";
 
   // Fix #2 — Topography key-concept checklist (2059/02): define each landform
@@ -194,10 +218,10 @@ For every point, provide the complete historical explanation with exact names, d
 * **Human / Social factors:** displacement, living standards, nomadic pastoralism, literacy, health, migration and urbanisation — anchored in the context.
 * **Part (d) 6-mark two-sided debate:** for evaluative prompts ("to what extent…", "advantages and disadvantages", feasibility), argue BOTH sides explicitly (Advantages vs Disadvantages, or Feasibility vs Risk), then give a DEFINITIVE **Level 3 concluding judgement** that commits to which side is stronger and why — never fence-sit. Target the top 6-mark band.`
     : subject === "pak-studies"
-      ? `This is a Pakistan Studies (${subjectCode}) evaluation — use the CAIE Level-4 (AO2) TWO-SIDED architecture for the point, written in full prose:
-* **Cause / Initial Success:** 3–4 sentences on why the development began or initially succeeded, anchored in primary evidence from the context (exact dates, names, figures, quotes).
-* **Counter-Factor / Ultimate Failure:** 3–4 sentences on why it broke down, was opposed, or ultimately failed, anchored in the context.
-* **Level 4 Synthesising Verdict:** ONE explicit judgement paragraph weighing both sides and stating WHICH factor was most decisive and WHY, written to the top AO2 band (9–12 marks). Commit to a reasoned verdict — do not sit on the fence.`
+      ? `This is a Pakistan Studies (${subjectCode}/01 History) evaluation — use the CAIE Level-4 (AO2) architecture, written in full prose and organised under the effect-based sub-headings required by the History structure rule:
+* **Immediate Effects:** 3–4 sentences on the direct, short-term consequences of the event or development, anchored in primary evidence from the context (exact dates, names, figures, quotes).
+* **Long-term Effects:** 3–4 sentences on the lasting consequences and significance for the Pakistan Movement, anchored in the context.
+* **Level 4 Synthesising Verdict:** ONE explicit judgement paragraph weighing the causes and effects and stating WHICH factor was most decisive and WHY, written to the top AO2 band (9–12 marks). Commit to a reasoned verdict — do not sit on the fence. Keep every fact strictly within the queried topic; never import a date, person or consequence from another historical period.`
       : `Write a developed prose evaluation, not bullets:
 * **Key Causes & Background (Why it occurred):** a full cause-and-effect analysis grounded in the context.
 * **Significance & Evaluation (Impact / To what extent):** a reasoned judgement of consequences and significance, targeting 7-, 10- and 14-mark essay questions.`;
@@ -218,7 +242,9 @@ For every point, provide the complete historical explanation with exact names, d
 
   const section2Body = isPakGeography
     ? `Write this as DENSE, fact-packed bullets (NOT prose paragraphs): each bullet a bolded lead-in plus ONE specific line on the physical/human geographic processes, exact place-names, figures and primary-source detail supplied by the context. Cross-check every location against the SPATIAL BOUNDARY MATRIX; omit anything the chunks do not support.`
-    : `Write this as full textbook prose — several developed paragraphs, NOT bullets. Give the complete narrative and explanation: exact names, dates, treaty clauses, Qur'anic references/Hadith (Islamiyat) or physical geographic processes (Geography), quotations and primary-source detail exactly as supplied by the context. Explain the 'what' and 'how' thoroughly enough that a student needs no textbook.`;
+    : isPakHistory
+      ? `Write this as full textbook prose — several developed paragraphs, NOT bullets — organised under two bolded sub-headings. **Background / Causes:** why the development began, the political context and the causes, with exact dates and personalities drawn from the chunks. **Key Events & Figures:** the chronological narrative — exact names, dates, treaty clauses, quotations and primary-source detail exactly as supplied by the context. Keep every fact strictly within "${subTopicDisplayName}"; never borrow a date, person or event from another historical period. Explain the 'what' and 'how' thoroughly enough that a student needs no textbook.`
+      : `Write this as full textbook prose — several developed paragraphs, NOT bullets. Give the complete narrative and explanation: exact names, dates, treaty clauses, Qur'anic references/Hadith (Islamiyat) or physical geographic processes (Geography), quotations and primary-source detail exactly as supplied by the context. Explain the 'what' and 'how' thoroughly enough that a student needs no textbook.`;
 
   const section4Body = isPakGeography
     ? `Write 2–3 specific, high-value warnings as terse bullets (each may begin with ⚠️), grounded in the retrieved examiner-report / mark-scheme context: the exact misconceptions, omissions, province-mixing errors and framing traps that cost marks on this sub-topic.`
@@ -230,7 +256,7 @@ ROLE: You are an elite CAIE Subject Lead authoring comprehensive, publication-re
 
 ${withSubjectScopeMarkdown(subject)}
 
-${groundingRule}${eventIsolationRule}${geographySpatialRule}${spatialBoundaryMatrix}${geographyKeyConcepts}
+${groundingRule}${eventIsolationRule}${historyEventRule}${geographySpatialRule}${spatialBoundaryMatrix}${geographyKeyConcepts}
 
 ${noSyllabusMetaRule}
 

@@ -1,13 +1,13 @@
-import { AnswerCheckerStudio } from "@/components/answer-checker/AnswerCheckerStudio";
+import { AnswerAssistantStudio } from "@/components/answer-assistant/AnswerAssistantStudio";
 import { getSubject } from "@/lib/subjects";
 
-interface AnswerCheckerPageProps {
+interface AnswerAssistantPageProps {
   params: Promise<{ subject: string }>;
 }
 
-export default async function AnswerCheckerPage({
+export default async function AnswerAssistantPage({
   params,
-}: AnswerCheckerPageProps) {
+}: AnswerAssistantPageProps) {
   const { subject } = await params;
   const subjectInfo = getSubject(subject);
 
@@ -19,10 +19,10 @@ export default async function AnswerCheckerPage({
           <div>
             <div className="inline-flex items-center gap-2 border border-black bg-white px-2.5 py-0.5 text-[11px] font-mono font-bold tracking-wider mb-2">
               <span className="text-black">■</span>
-              <span>MODULE 3 — CAIE STRICT ANSWER CHECKER</span>
+              <span>MODULE 2 — GUIDED ANSWERING AGENT</span>
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-black font-serif">
-              {subjectInfo?.name ?? subject} Answer Checker
+              {subjectInfo?.name ?? subject} Answering Assistant
             </h1>
             <p className="mt-1 text-xs sm:text-sm font-mono text-atlas tracking-tight font-medium flex flex-wrap items-center gap-2">
               <span>
@@ -61,7 +61,7 @@ export default async function AnswerCheckerPage({
 
       {/* Main Interactive Workspace / Fallback Banner */}
       {subjectInfo ? (
-        <AnswerCheckerStudio key={subjectInfo.id} subjectId={subjectInfo.id} />
+        <AnswerAssistantStudio key={subjectInfo.id} subjectId={subjectInfo.id} />
       ) : (
         <div className="mb-6 border-2 border-atlas bg-white p-3 flex items-start justify-between gap-4 text-xs font-mono">
           <div className="flex items-center gap-2">

@@ -39,6 +39,8 @@ export interface CheckerContextChunk {
   paperCode: string | null;
   year: number | null;
   session: string | null;
+  /** metadata.sub_topic tag — topic provenance used to reject cross-topic chunks. */
+  subTopic: string | null;
   text: string;
 }
 
@@ -54,7 +56,7 @@ export interface BuildCheckerUserPromptArgs {
 /** Per-subject CAIE level/marking rubric, aligned to PRD §5. */
 const SUBJECT_RUBRIC: Record<SubjectId, string> = {
   "pak-studies":
-    "Pakistan Studies (2059): apply the Paper 1 level descriptors — 3/4-mark questions need 3–4 distinct factual statements; 7-mark questions need one developed point (Level 2) or 2+ points developed with cause and effect (Level 3, 5–7 marks); 14-mark questions need a balanced both-sides argument plus a clear evaluative conclusion (Level 4, 11–14 marks). For Paper 2 (Environment of Pakistan) require geographical terminology and specific named examples (e.g. Tarbela Dam, Warsak Dam, Indus Basin).",
+    "Pakistan Studies (2059): apply the Paper 1 level descriptors — 3/4-mark questions need 3–4 distinct factual statements; 7-mark questions need one developed point (Level 2) or 2+ points developed with cause and effect (Level 3, 5–7 marks); 14-mark questions need a balanced both-sides argument plus a clear evaluative conclusion (Level 4, 11–14 marks). For Paper 2 (Environment of Pakistan) require geographical terminology and specific named examples (e.g. Tarbela Dam, Warsak Dam, Indus Basin). For Paper 2 Geography: treat station-specific diagram text, weather charts, or local graphs as localized sample data, NOT as macro-climate generalizations for all of Pakistan; do NOT award marks for, or write into the exemplar, any nationwide climate claim drawn from a single station or chart unless the question is specifically about that diagram.",
   islamiyat:
     "Islamiyat (2058): grade Part (a) 10-mark answers on factual recall — precise Quranic references, Hadith citations, accurate dates and chronology; grade Part (b) 4-mark answers on evaluation and modern-day application with the student's own reasoned reflection. Keep the Part (a) and Part (b) rubrics strictly distinct, and credit verse/narration references only where the retrieved context supports them.",
   urdu:
@@ -90,6 +92,16 @@ Keep the reply COMPACT so it completes inside the 2,000-token response budget: w
   // urdu subject only. Appended LAST so it overrides the English-oriented rules
   // above; AO3 never applies to urdu (pak-studies only), so the two never clash.
   const urduRule = subject === "urdu" ? `\n\n${URDU_OUTPUT_RULES}` : "";
+
+  // Issue 2 — Islamiyat (2058) cross-topic contamination guard. Each context
+  // chunk is surfaced with its "topic:" tag (metadata.sub_topic); the examiner
+  // must grade ONLY against chunks whose tag matches the question and ignore any
+  // tagged to a different event/battle/Caliph/topic. Appended LAST for priority.
+  const islamiyatRule =
+    subject === "islamiyat"
+      ? `\n\nISLAMIYAT TOPIC BOUNDARY RULE (2058 — anti-cross-contamination, highest priority):
+Strictly enforce CAIE Islamiyat (2058) syllabus boundaries. Do NOT mix details between different historical events, Caliphs, or topics. Only utilize facts explicitly supported by the retrieved context for the specific topic queried. Each context chunk below is labelled with its source "topic:" tag. Grade against the chunks whose tag matches the question's topic AND any general-subject tag (e.g. "general2058"); IGNORE only chunks tagged to a DIFFERENT specific event, battle, Caliph or topic when deciding strengths, missing_elements, required_level4_evaluation and the exemplar (e.g. never require Migration to Abyssinia or Conquest of Makkah facts in a Hijrah-to-Madinah answer). Do NOT set total_mark to 0 or emit the insufficient-context sentence merely because some retrieved chunks are off-topic — grade from the on-topic and general chunks that remain. Never credit or demand a date, name, verse, Hadith or figure transferred from one topic into another; if no on-topic or general chunk states it, do not require it.`
+      : "";
 
   return `YOU ARE AN EXPERT CAIE EXAMINER AND SENIOR TUTOR FOR O LEVEL ${subjectUpper} (${subjectCode}).
 
@@ -131,7 +143,7 @@ OUTPUT CONTRACT — return a SINGLE JSON object and NOTHING else, matching exact
 - "student_friendly_explanation": a short, encouraging, plain-English explanation of why marks were lost and how to bridge the gap to full marks.
 - "exemplar_full_mark_answer": TIER 3. A complete, exam-ready model answer in real prose (standard CAIE layout) showing exactly how to weave the Tier 1 facts and Tier 2 analysis into a full-mark response — NOT an outline and NOT bullet fragments. Grounded ONLY in the retrieved context.
 - If the context cannot ground the grading, still return valid JSON: set assigned_mark and total_mark to 0, leave strengths, missing_elements and required_level4_evaluation empty, and put EXACTLY "${INSUFFICIENT_CONTEXT_SENTENCE}" in student_friendly_explanation.
-- Do NOT wrap the JSON in markdown fences or add any commentary.${ao3Rule}${urduRule}`;
+- Do NOT wrap the JSON in markdown fences or add any commentary.${ao3Rule}${urduRule}${islamiyatRule}`;
 }
 
 /** Truncate a single chunk excerpt to the per-chunk cap. */
@@ -153,7 +165,8 @@ function formatChunkMeta(chunk: CheckerContextChunk): string {
   ].filter(
     (part): part is string => typeof part === "string" && part.length > 0
   );
-  return parts.length > 0 ? parts.join(" | ") : "source metadata unavailable";
+  const base = parts.length > 0 ? parts.join(" | ") : "source metadata unavailable";
+  return chunk.subTopic ? `${base} | topic: ${chunk.subTopic}` : base;
 }
 
 /**
